@@ -102,10 +102,11 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 </head>
 <body data-sidebar="navy">
 <div class="sidebar" id="sidebar">
-  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Topology • v0.4</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
+  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Topology • v0.5</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
   <nav class="menu">
     <a href="dashboard.html">📊 <span class="lbl">Dashboard</span></a>
     <a class="on" href="topology.html">🗺️ <span class="lbl">Topology</span></a>
+    <a href="devices.html">🖥️ <span class="lbl">Devices</span></a>
     <a href="index.html">🚪 <span class="lbl">Kembali ke Login</span></a>
   </nav>
   <div class="theme-panel">
@@ -156,7 +157,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 
         <div style="margin-top:12px;display:grid;gap:8px">
           <label class="mut" style="font-weight:600">Tambah / Edit Link
-            <select id="sensorPick" class="input" style="margin-top:6px"><option>RB-01 ether1 (ifInOctets.2) — 1.2 Gbps</option><option>RB-01 ether2 — 800 Mbps</option><option>SW-01 port24 — 10G</option><option>Tanpa sensor</option></select>
+            <select id="sensorPick" class="input" style="margin-top:6px"><option value="">Tanpa sensor</option></select>
           </label>
           <input id="linkDesc" class="input" placeholder="Deskripsi — cth: VLAN 10 uplink">
           <div style="display:flex;gap:8px"><input id="linkCap" class="input" placeholder="Capacity — cth: 10G / 10000 Mbps"><button class="btn sm" onclick="saveLink()" style="white-space:nowrap">Simpan</button></div>
@@ -192,7 +193,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
     <p class="mut" style="font-size:.76rem;margin:4px 0 10px">Hubungkan 2 node di layer ini. Bisa pilih sensor SNMP untuk live traffic.</p>
     <div style="display:grid;gap:8px">
       <div style="display:flex;gap:8px"><select id="mFrom" class="input"><option value="">Dari…</option></select><select id="mTo" class="input"><option value="">Ke…</option></select></div>
-      <select id="mSensor" class="input"><option>RB-01 ether1 (ifInOctets.2) — 1.2 Gbps</option><option>RB-01 ether2 — 800 Mbps</option><option>SW-01 port24 — 10G</option><option>Tanpa sensor</option></select>
+      <select id="mSensor" class="input"><option value="">Tanpa sensor</option></select>
       <input id="mDesc" class="input" placeholder="Deskripsi — cth: LAG fiber 10G">
       <input id="mCap" class="input" placeholder="BPS — cth: 8.2 Gbps">
     </div>
@@ -627,6 +628,51 @@ render=function(){
 // try load persisted view
 if(loadView()){ applyTransform(); }
 setLayer('top');
+
+
+// v0.5 — Topology sensor picker real (Device→Interface from /api/interfaces) + live bps poll
+async function wireTopoSensors(){
+  const hdr=()=>{const t=localStorage.getItem('nms_token'); const h={}; if(t) h['Authorization']='Bearer '+t; return h;};
+  try{
+    const r=await fetch('/api/devices',{headers:hdr()}); if(!r.ok) return;
+    const devs=await r.json();
+    if(!Array.isArray(devs)||!devs.length) return;
+    // Build options: each device's interfaces (if any) else device alone
+    let opts='<option value="">Tanpa sensor</option>';
+    for(const d of devs){
+      try{
+        const ri=await fetch('/api/interfaces?device_id='+encodeURIComponent(d.id),{headers:hdr()});
+        if(ri.ok){
+          const ifs=await ri.json();
+          if(ifs.length){
+            ifs.forEach(it=>{ opts+=`<option value="${d.id}:${it.if_index}">${d.id} ${it.name} (if${it.if_index})</option>`; });
+            continue;
+          }
+        }
+      }catch(e){}
+      opts+=`<option value="${d.id}:">${d.id} — ${d.name} (no SNMP yet)</option>`;
+    }
+    const sp=document.getElementById('sensorPick'); if(sp) sp.innerHTML=opts;
+    const ms=document.getElementById('mSensor'); if(ms) ms.innerHTML=opts;
+  }catch(e){}
+  // live bps poll every 8s via /api/links
+  async function pollBps(){
+    try{
+      const r=await fetch('/api/links',{headers:hdr()}); if(!r.ok) return;
+      const links=await r.json();
+      // update edge labels if bps changed - simple: re-render if different
+      let changed=false;
+      links.forEach(l=>{
+        const local = [...linksTop, ...Object.values(linksByRack).flat()].find(x=> x.a===l.src_id && x.b===l.dst_id);
+        if(local && l.bps && local.bps!==l.bps){ local.bps=l.bps; changed=true; }
+      });
+      if(changed) render();
+    }catch(e){}
+  }
+  setInterval(pollBps, 8000);
+  pollBps();
+}
+setTimeout(wireTopoSensors, 700);
 
 // --- NMS v0.4 backend topology sync ---
 (function topoSync(){

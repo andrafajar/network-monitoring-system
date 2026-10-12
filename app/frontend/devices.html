@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NMS — Devices</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--muted:#64748B;--ink:#0F172A;--sidebar-bg:#0A2463}
+[data-theme="dark"]{--bg:#020617;--card:#1E293B;--line:#334155;--muted:#94A3B8;--ink:#F1F5F9}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex}
+.sidebar{width:260px;min-width:260px;background:var(--sidebar-bg);color:#E2E8F0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto;transition:width .2s}
+.sidebar.minimized{width:72px;min-width:72px}
+.sidebar.minimized .hide-mini{display:none}
+.sidebar.minimized .logo{padding:12px 6px;gap:6px}
+.logo{padding:14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+.logo .ic{width:36px;height:36px;min-width:36px;border-radius:10px;background:#fff;color:#0A2463;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.sidebar.minimized .logo .ic{width:32px;height:32px;min-width:32px;border-radius:8px;font-size:.95rem}
+.logo b{color:#fff;font-size:.95rem;display:block}
+.logo small{color:#94A3B8;font-size:.68rem}
+#sideToggle{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem}
+.nav{padding:10px 8px;flex:1}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:#CBD5E1;text-decoration:none;font-size:.84rem;font-weight:600;margin-bottom:4px}
+.nav a.active,.nav a:hover{background:rgba(255,255,255,.1);color:#fff}
+.sidebar.minimized .nav a{justify-content:center;padding:10px 6px}
+.sidebar.minimized .nav a span.txt{display:none}
+.theme-area{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08)}
+.dark-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.08);cursor:pointer;font-size:.78rem}
+.switch{position:relative;display:inline-block;width:38px;height:22px}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#334155;border-radius:999px;transition:.2s}
+.slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+input:checked + .slider{background:#FACC15}
+input:checked + .slider:before{transform:translateX(16px)}
+.dots{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.dot.on{border-color:#fff;box-shadow:0 0 0 2px var(--sidebar-bg)}
+.main{flex:1;min-width:0;padding:18px 18px 32px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.h1{font-size:1.15rem;font-weight:800}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 1px 6px rgba(0,0,0,.04)}
+.btn{padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:700;cursor:pointer;font-size:.82rem}
+.btn.primary{background:#0A2463;color:#fff;border-color:#0A2463}
+.btn.primary:hover{background:#1E3A8A}
+.btn.ghost{background:transparent}
+.btn.sm{padding:5px 8px;font-size:.75rem}
+.badge{padding:2px 7px;border-radius:999px;font-size:.68rem;font-weight:700;border:1px solid var(--line)}
+.badge.ok{background:#D1FAE5;color:#065F46;border-color:#A7F3D0}
+.badge.off{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5}
+.badge.mid{background:#FEF3C7;color:#92400E;border-color:#FDE68A}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{color:var(--muted);text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);font-weight:700}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:hover td{background:rgba(37,99,235,.03)}
+input,select{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+input:focus,select:focus{outline:none;border-color:#2563EB}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
+.chip{padding:4px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:.72rem}
+.mut{color:var(--muted)}
+#toast{position:fixed;right:16px;bottom:16px;background:#0A2463;color:#fff;padding:10px 14px;border-radius:10px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.2);display:none;z-index:99}
+</style>
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Devices • v0.5</small></div></div><button id="sideToggle" title="Minimize">‹</button></div>
+  <nav class="nav">
+    <a href="dashboard.html">📊 <span class="txt">Dashboard</span></a>
+    <a href="topology.html">🗺️ <span class="txt">Topology</span></a>
+    <a href="devices.html" class="active">🖥️ <span class="txt">Devices</span></a>
+    <a href="#" onclick="alert('Users & Roles —soon');return false">👥 <span class="txt">Users & Roles</span></a>
+    <a href="index.html" onclick="localStorage.removeItem('nms_token');">↩️ <span class="txt">Logout</span></a>
+  </nav>
+  <div class="theme-area hide-mini">
+    <label class="dark-row"><span><span id="darkIcon">🌙</span> Dark mode</span><label class="switch"><input type="checkbox" id="darkChk"><span class="slider"></span></label></label>
+    <div class="dots" id="dots"><div class="dot on" data-theme="navy" style="background:#0A2463" title="Navy"></div><div class="dot" data-theme="green" style="background:#064E3B" title="Green"></div><div class="dot" data-theme="purple" style="background:#4C1D95" title="Purple"></div><div class="dot" data-theme="slate" style="background:#1E293B" title="Slate"></div><div class="dot" data-theme="crimson" style="background:#7F1D1D" title="Crimson"></div><div class="dot" data-theme="teal" style="background:#134E4A" title="Teal"></div></div>
+  </div>
+</aside>
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="h1">Device Manager</div>
+      <div class="mut" style="font-size:.82rem">Kelola racks, groups, devices & links • API Bearer login</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="openGroupModal()">+ Group</button>
+      <button class="btn" onclick="openRackModal()">+ Rack</button>
+      <button class="btn primary" onclick="openDeviceModal()">+ Device</button>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Groups</b><button class="btn sm ghost" onclick="loadGroups()">↻</button></div>
+      <div id="groupsList" style="display:grid;gap:8px"></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Racks</b><button class="btn sm ghost" onclick="loadRacks()">↻</button></div>
+      <div id="racksList" style="display:grid;gap:8px"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <b>Devices</b>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="filterGroup"><option value="">All groups</option></select>
+        <select id="filterRack"><option value="">All racks</option></select>
+        <span class="mut" style="font-size:.72rem" id="devCount">—</span>
+        <button class="btn sm" onclick="loadDevices()">↻ Refresh</button>
+      </div>
+    </div>
+    <div style="overflow:auto">
+      <table>
+        <thead><tr><th>ID</th><th>Name • IP</th><th>Type</th><th>Group</th><th>Rack</th><th>Poll</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="devTable"><tr><td colspan="8" class="mut">Memuat...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Links</b><button class="btn sm" onclick="openLinkModal()">+ Link</button></div>
+    <div style="overflow:auto">
+      <table>
+        <thead><tr><th>ID</th><th>Src → Dst</th><th>Type</th><th>Description</th><th>Capacity</th><th>Sensor</th><th>BPS</th><th>Act</th></tr></thead>
+        <tbody id="linkTable"><tr><td colspan="8" class="mut">Memuat...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="mut" style="font-size:.72rem;margin-top:10px">Tip: Poll interval — device override group override global (default 30s). Link sensor = Device→Interface untuk live bps.</p>
+</div>
+
+<div id="toast"></div>
+
+<!-- Modals -->
+<div id="modalDevice" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:560px;width:100%;max-height:90vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="devModalTitle">+ Device</b><button class="btn sm" onclick="closeModal('modalDevice')">✕</button></div>
+    <div class="form-grid">
+      <label>ID (auto if empty)<input id="fId" placeholder="RB-01"></label>
+      <label>Name<input id="fName" placeholder="RB Core"></label>
+      <label>IP<input id="fIp" placeholder="10.0.1.1"></label>
+      <label>Type<select id="fType"><option>mikrotik</option><option>switch</option><option>server</option><option>cctv</option><option>generic</option></select></label>
+      <label>Group<select id="fGroup"><option value="">— none —</option></select></label>
+      <label>Rack<select id="fRack"><option value="">— none —</option></select></label>
+      <label>Poll interval (s)<input id="fPoll" type="number" placeholder="kosong = ikut group/global"></label>
+      <label>SNMP community<input id="fComm" value="public"></label>
+      <label>X<input id="fX" type="number" value="100"></label>
+      <label>Y<input id="fY" type="number" value="100"></label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end"><button class="btn" onclick="closeModal('modalDevice')">Batal</button><button class="btn primary" onclick="saveDevice()">Simpan</button></div>
+    <div id="devErr" class="mut" style="color:#DC2626;font-size:.78rem;margin-top:8px"></div>
+  </div>
+</div>
+
+<div id="modalGroup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:420px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b>+ Group</b><button class="btn sm" onclick="closeModal('modalGroup')">✕</button></div>
+    <label>Nama Group<input id="gName" placeholder="Jakarta"></label>
+    <label>Deskripsi<input id="gDesc" placeholder="Core + Cabang"></label>
+    <label>Poll interval (s)<input id="gPoll" type="number" value="30"></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="closeModal('modalGroup')">Batal</button><button class="btn primary" onclick="saveGroup()">Simpan</button></div>
+  </div>
+</div>
+
+<div id="modalRack" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:420px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b>+ Rack</b><button class="btn sm" onclick="closeModal('modalRack')">✕</button></div>
+    <label>ID (huruf, ex: D)<input id="rId" placeholder="D"></label>
+    <label>Nama<input id="rName" placeholder="Rack D"></label>
+    <label>Lokasi<input id="rLoc" placeholder="Jakarta DC R3"></label>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="closeModal('modalRack')">Batal</button><button class="btn primary" onclick="saveRack()">Simpan</button></div>
+  </div>
+</div>
+
+<div id="modalLink" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;align-items:center;justify-content:center;padding:16px">
+  <div class="card" style="max-width:560px;width:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b>+ Link</b><button class="btn sm" onclick="closeModal('modalLink')">✕</button></div>
+    <div class="form-grid">
+      <label>Src ID<input id="lSrc" placeholder="RB-01 atau A"></label>
+      <label>Dst ID<input id="lDst" placeholder="SW-01 atau B"></label>
+      <label>Src type<select id="lSrcType"><option value="device">device</option><option value="rack">rack</option></select></label>
+      <label>Dst type<select id="lDstType"><option value="device">device</option><option value="rack">rack</option></select></label>
+      <label>Deskripsi<input id="lDesc" placeholder="VLAN 10 uplink"></label>
+      <label>Capacity (bps)<input id="lCap" type="number" value="1000000000"></label>
+      <label>Sensor device (optional)<select id="lSensor"><option value="">— none —</option></select></label>
+      <label>Sensor ifIndex<input id="lIf" type="number" placeholder="2"></label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn" onclick="closeModal('modalLink')">Batal</button><button class="btn primary" onclick="saveLink()">Simpan</button></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+function tok(){ return localStorage.getItem('nms_token')||''; }
+function hdr(){ const h={'Content-Type':'application/json'}; const t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); }
+function needLogin(){
+  if(!tok()){
+    const sel=confirm('Token kosong — login dulu sebagai superadmin/Admin@123?\nOK = ke Login, Cancel = tetap preview (read-only dummy)');
+    if(sel) location.href='index.html';
+    return true;
+  }
+  return false;
+}
+async function jget(p){ const r=await fetch(API+p,{headers:hdr()}); if(!r.ok){ if(r.status===401) toast('401 — login dulu'); throw new Error(r.status); } return r.json(); }
+async function jpost(p,b){ const r=await fetch(API+p,{method:'POST',headers:hdr(),body:JSON.stringify(b)}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.status); return j; }
+async function jput(p,b){ const r=await fetch(API+p,{method:'PUT',headers:hdr(),body:JSON.stringify(b)}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.status); return j; }
+async function jdel(p){ const r=await fetch(API+p,{method:'DELETE',headers:hdr()}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.status); return j; }
+
+// theme/minimize
+(function(){
+  const sb=document.getElementById('sidebar'), tg=document.getElementById('sideToggle');
+  const darkChk=document.getElementById('darkChk'), darkIcon=document.getElementById('darkIcon');
+  function applyMini(m){ sb.classList.toggle('minimized',m); tg.textContent=m?'›':'‹'; localStorage.setItem('nms_sidebar_mini', m?'1':'0'); }
+  function applyDark(on){ document.documentElement.setAttribute('data-theme', on?'dark':''); darkChk.checked=on; darkIcon.textContent=on?'☀️':'🌙'; localStorage.setItem('nms_dark', on?'1':'0'); }
+  const savedMini=localStorage.getItem('nms_sidebar_mini'); applyMini(savedMini===null? window.innerWidth<=1000 : savedMini==='1');
+  applyDark(localStorage.getItem('nms_dark')==='1');
+  tg.onclick=()=> applyMini(!sb.classList.contains('minimized'));
+  darkChk.onchange=()=> applyDark(darkChk.checked);
+  document.querySelectorAll('.dot').forEach(d=> d.onclick=()=>{
+    document.querySelectorAll('.dot').forEach(x=>x.classList.remove('on')); d.classList.add('on');
+    const th=d.dataset.theme; const map={navy:'#0A2463',green:'#064E3B',purple:'#4C1D95',slate:'#1E293B',crimson:'#7F1D1D',teal:'#134E4A'};
+    document.documentElement.style.setProperty('--sidebar-bg', map[th]||'#0A2463'); localStorage.setItem('nms_sidebar_theme', th);
+  });
+  const th=localStorage.getItem('nms_sidebar_theme'); if(th){ document.querySelector(`.dot[data-theme="${th}"]`)?.click(); }
+})();
+function closeModal(id){ document.getElementById(id).style.display='none'; }
+function openModal(id){ document.getElementById(id).style.display='flex'; }
+
+let GROUPS=[], RACKS=[], DEVICES=[];
+
+async function loadGroups(){
+  try{
+    const a=await jget('/api/device-groups');
+    GROUPS=a;
+    const el=document.getElementById('groupsList');
+    el.innerHTML=a.map(g=> `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)"><div><b style="font-size:.84rem">${g.name}</b><div class="mut" style="font-size:.72rem">${g.description||''} • poll ${g.poll_interval}s</div></div><button class="btn sm" onclick="delGroup('${g.id}')">Hapus</button></div>`).join('') || '<div class="mut">Kosong</div>';
+    const fg=document.getElementById('fGroup'), flg=document.getElementById('filterGroup');
+    const opts='<option value="">— none —</option>'+a.map(g=> `<option value="${g.id}">${g.name}</option>`).join('');
+    fg.innerHTML=opts; flg.innerHTML='<option value="">All groups</option>'+a.map(g=> `<option value="${g.id}">${g.name}</option>`).join('');
+  }catch(e){ document.getElementById('groupsList').innerHTML='<div class="mut" style="color:#DC2626">Gagal load — login dulu</div>'; }
+}
+async function loadRacks(){
+  try{
+    const a=await jget('/api/racks');
+    RACKS=a;
+    document.getElementById('racksList').innerHTML=a.map(r=> `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)"><div><b style="font-size:.84rem">${r.name} (${r.id})</b><div class="mut" style="font-size:.72rem">${r.location||''}</div></div><button class="btn sm" onclick="delRack('${r.id}')">Hapus</button></div>`).join('') || '<div class="mut">Kosong</div>';
+    const fr=document.getElementById('fRack'), flr=document.getElementById('filterRack');
+    const opts='<option value="">— none —</option>'+a.map(r=> `<option value="${r.id}">${r.id} — ${r.name}</option>`).join('');
+    fr.innerHTML=opts; flr.innerHTML='<option value="">All racks</option>'+a.map(r=> `<option value="${r.id}">${r.id}</option>`).join('');
+    // link sensor device list
+    const ls=document.getElementById('lSensor');
+    const cur=ls.value;
+    ls.innerHTML='<option value="">— none —</option>'+ (DEVICES||[]).map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join('');
+    if(cur) ls.value=cur;
+  }catch(e){ document.getElementById('racksList').innerHTML='<div class="mut" style="color:#DC2626">Gagal load</div>'; }
+}
+async function loadDevices(){
+  try{
+    const a=await jget('/api/devices');
+    DEVICES=a;
+    // also refresh racks/groups for filter
+    const ls=document.getElementById('lSensor');
+    ls.innerHTML='<option value="">— none —</option>'+ a.map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join('');
+    renderDevices();
+  }catch(e){ document.getElementById('devTable').innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load — '+(e.message||'')+' — login dulu</td></tr>'; }
+}
+function renderDevices(){
+  const fg=document.getElementById('filterGroup').value, fr=document.getElementById('filterRack').value;
+  let a=DEVICES;
+  if(fg) a=a.filter(d=> d.group_id===fg);
+  if(fr) a=a.filter(d=> d.rack_id===fr);
+  document.getElementById('devCount').textContent=a.length+' devices';
+  const gmap=Object.fromEntries(GROUPS.map(g=>[g.id,g.name]));
+  const tbody=document.getElementById('devTable');
+  if(a.length===0){ tbody.innerHTML='<tr><td colspan="8" class="mut">Tidak ada device (coba tambah)</td></tr>'; return; }
+  tbody.innerHTML=a.map(d=> {
+    const st=d.status==='online'?'ok': d.status==='offline'?'off':'mid';
+    const stLabel=d.status||'unknown';
+    const poll=d.poll_interval? d.poll_interval+'s' : '<span class="mut">ikut group/global</span>';
+    const grp=gmap[d.group_id]|| d.group_id||'<span class="mut">—</span>';
+    const rk=d.rack_id||'<span class="mut">—</span>';
+    return `<tr><td><b>${d.id}</b></td><td><b style="font-size:.84rem">${d.name}</b><div class="mut" style="font-size:.72rem">${d.ip}</div></td><td><span class="chip">${d.type}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="editDevice('${d.id}')">Edit</button><button class="btn sm" onclick="openWebConsole('${d.id}')">Web Console</button><button class="btn sm" style="color:#DC2626" onclick="delDevice('${d.id}')">Hapus</button></td></tr>`;
+  }).join('');
+}
+async function loadLinks(){
+  try{
+    const a=await jget('/api/links');
+    const tb=document.getElementById('linkTable');
+    if(a.length===0){ tb.innerHTML='<tr><td colspan="8" class="mut">Belum ada link</td></tr>'; return; }
+    tb.innerHTML=a.map(l=> `<tr><td><b>${l.id}</b></td><td>${l.src_id} → ${l.dst_id}</td><td><span class="chip">${l.src_type}/${l.dst_type}</span></td><td>${l.description||'<span class="mut">—</span>'}</td><td class="mut">${(l.capacity/1e9).toFixed(1)}G</td><td class="mut">${l.sensor_device_id? l.sensor_device_id+':'+(l.sensor_if_index??'—') : '—'}</td><td><b style="color:#2563EB">${l.bps||'—'}</b></td><td><button class="btn sm" style="color:#DC2626" onclick="delLink('${l.id}')">Hapus</button></td></tr>`).join('');
+  }catch(e){ document.getElementById('linkTable').innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load links</td></tr>'; }
+}
+
+function openDeviceModal(edit){
+  document.getElementById('devErr').textContent='';
+  if(!edit){
+    document.getElementById('devModalTitle').textContent='+ Device';
+    ['fId','fName','fIp','fPoll','fComm','fX','fY'].forEach(id=> document.getElementById(id).value=id==='fComm'?'public': id==='fX'||id==='fY'?'100':'');
+    document.getElementById('fType').value='mikrotik';
+    document.getElementById('fGroup').value=''; document.getElementById('fRack').value='';
+    delete openDeviceModal._edit;
+  }
+  openModal('modalDevice');
+}
+async function saveDevice(){
+  const id=document.getElementById('fId').value.trim()||undefined, name=document.getElementById('fName').value.trim(), ip=document.getElementById('fIp').value.trim();
+  if(!name||!ip){ document.getElementById('devErr').textContent='Name & IP wajib'; return; }
+  const body={ name, ip, type: document.getElementById('fType').value, group_id: document.getElementById('fGroup').value||null, rack_id: document.getElementById('fRack').value||null, poll_interval: document.getElementById('fPoll').value? parseInt(document.getElementById('fPoll').value): null, snmp_community: document.getElementById('fComm').value, x: parseInt(document.getElementById('fX').value)||100, y: parseInt(document.getElementById('fY').value)||100 };
+  if(id) body.id=id;
+  try{
+    if(openDeviceModal._edit){
+      await jput('/api/devices/'+openDeviceModal._edit, body);
+      toast('Device updated');
+    } else {
+      await jpost('/api/devices', body);
+      toast('Device created');
+    }
+    closeModal('modalDevice'); loadDevices();
+  }catch(e){ document.getElementById('devErr').textContent=e.message; }
+}
+async function editDevice(id){
+  const d=DEVICES.find(x=>x.id===id); if(!d) return;
+  openDeviceModal(true); openDeviceModal._edit=id;
+  document.getElementById('devModalTitle').textContent='Edit '+id;
+  document.getElementById('fId').value=d.id; document.getElementById('fName').value=d.name; document.getElementById('fIp').value=d.ip;
+  document.getElementById('fType').value=d.type; document.getElementById('fGroup').value=d.group_id||''; document.getElementById('fRack').value=d.rack_id||'';
+  document.getElementById('fPoll').value=d.poll_interval||''; document.getElementById('fComm').value=d.snmp_community||'public';
+  document.getElementById('fX').value=d.x||100; document.getElementById('fY').value=d.y||100;
+}
+async function delDevice(id){ if(!confirm('Hapus '+id+'?')) return; await jdel('/api/devices/'+id); toast('Deleted'); loadDevices(); loadLinks(); }
+function openGroupModal(){ openModal('modalGroup'); }
+async function saveGroup(){
+  const name=document.getElementById('gName').value.trim(); if(!name) return;
+  await jpost('/api/device-groups',{name, description: document.getElementById('gDesc').value, poll_interval: parseInt(document.getElementById('gPoll').value)||30});
+  closeModal('modalGroup'); toast('Group created'); loadGroups();
+}
+async function delGroup(id){ if(!confirm('Hapus group '+id+'? Devices akan jadi no-group.')) return; await jdel('/api/device-groups/'+id); toast('Deleted'); loadGroups(); loadDevices(); }
+function openRackModal(){ openModal('modalRack'); }
+async function saveRack(){
+  const id=document.getElementById('rId').value.trim(), name=document.getElementById('rName').value.trim();
+  if(!name) return;
+  await jpost('/api/racks',{id: id||undefined, name, location: document.getElementById('rLoc').value});
+  closeModal('modalRack'); toast('Rack created'); loadRacks();
+}
+async function delRack(id){ if(!confirm('Hapus rack '+id+'? Devices di rack akan jadi no-rack.')) return; await jdel('/api/racks/'+id); toast('Deleted'); loadRacks(); loadDevices(); }
+function openLinkModal(){ openModal('modalLink'); }
+async function saveLink(){
+  const body={ src_id: document.getElementById('lSrc').value.trim(), dst_id: document.getElementById('lDst').value.trim(), src_type: document.getElementById('lSrcType').value, dst_type: document.getElementById('lDstType').value, description: document.getElementById('lDesc').value, capacity: parseInt(document.getElementById('lCap').value)||1000000000, sensor_device_id: document.getElementById('lSensor').value||null, sensor_if_index: document.getElementById('lIf').value? parseInt(document.getElementById('lIf').value): null, bps: '' };
+  if(!body.src_id||!body.dst_id) return;
+  await jpost('/api/links', body); closeModal('modalLink'); toast('Link created'); loadLinks();
+}
+async function delLink(id){ if(!confirm('Hapus link '+id+'?')) return; await jdel('/api/links/'+id); toast('Deleted'); loadLinks(); }
+function openWebConsole(id){ window.open('/api/bastion/webconsole/'+id, '_blank'); }
+
+document.getElementById('filterGroup').onchange=renderDevices;
+document.getElementById('filterRack').onchange=renderDevices;
+
+// init
+loadGroups().then(()=> loadRacks()).then(()=> loadDevices()).then(()=> loadLinks());
+if(!tok()){ document.getElementById('devTable').innerHTML='<tr><td colspan="8" class="mut">Login dulu di <a href="index.html" style="color:#2563EB">index.html</a> (superadmin/Admin@123) — lalu refresh.</td></tr>'; }
+</script>
+</body>
+</html>

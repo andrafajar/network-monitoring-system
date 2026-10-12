@@ -6,7 +6,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js">
-// --- NMS v0.4 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
+// --- NMS v0.5 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
+
+
+
+
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack-all.js">
+// --- NMS v0.5 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
 (function backendSync(){
   function tok(){ return localStorage.getItem('nms_token'); }
   function hdr(){ var h={}; var t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
@@ -47,47 +55,34 @@
   }
 })();
 
-</script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack-all.js">
-// --- NMS v0.4 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
-(function backendSync(){
-  function tok(){ return localStorage.getItem('nms_token'); }
-  function hdr(){ var h={}; var t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
-  // update KPI from /api/devices if available
-  fetch('/api/devices',{headers: hdr()}).then(r=> r.ok? r.json(): null).then(arr=>{
-    if(!arr||!Array.isArray(arr)) return;
-    var total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
-    // find KPI cards: those with h3 Online/Offline etc
-    var cards=document.querySelectorAll('.card');
-    // simple: find elements containing "12 devices" etc and replace
-    // Do minimal: update document title KPI hint
-    var kpiOnline=document.querySelector('[data-kpi="online"]');
-    // fallback: update first KPI numbers via text replace if structure exists
-    var txt=document.body.innerHTML;
-    // Instead, update visible KPI spans if we can find
-    // Look for specific KPI values by replacing known dummy
-    var els=document.querySelectorAll('h3, b, span');
-    // noop — keep preview stable; log count
-    console.log('[NMS] backend devices', total, 'online', online);
-    var statusEl=document.getElementById('status');
-    // stash for GridStack widgets that need device picker
-    window.NMS_DEVICES=arr;
-  }).catch(()=>{});
-  fetch('/api/racks',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
-    if(!arr) return;
-    console.log('[NMS] backend racks', arr.length);
-    window.NMS_RACKS=arr;
-  }).catch(()=>{});
-  fetch('/api/device-groups',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
-    if(!arr) return;
-    console.log('[NMS] backend groups', arr.length);
-    window.NMS_GROUPS=arr;
-  }).catch(()=>{});
-  // if no token, redirect to login after 1s (preview allow)
-  if(!tok() && !localStorage.getItem('nms_setup_done')){
-    // keep preview but hint
-    console.log('[NMS] no token — preview mode');
+
+// v0.5 — real metrics chart: fetch /api/metrics/device/{id}
+async function fetchDeviceMetrics(id){
+  try{
+    const r=await fetch('/api/metrics/device/'+id, {headers: (window.hdr? hdr(): {})});
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
+}
+window.fetchDeviceMetrics = fetchDeviceMetrics;
+// Auto-refresh KPI from backend every 10s if token exists
+(function(){
+  if(!localStorage.getItem('nms_token')) return;
+  async function refreshKPI(){
+    try{
+      const r=await fetch('/api/devices', {headers: hdr()});
+      if(!r.ok) return;
+      const arr=await r.json();
+      const total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
+      // try to update KPI cards by text
+      document.querySelectorAll('.kpi, [data-kpi]').forEach(el=>{});
+      // update header stats if exists
+      const elTotal=document.getElementById('kpiTotal'); if(elTotal) elTotal.textContent=total;
+      const elOn=document.getElementById('kpiOnline'); if(elOn) elOn.textContent=online;
+      const elOff=document.getElementById('kpiOffline'); if(elOff) elOff.textContent=offline;
+    }catch(e){}
   }
+  setInterval(refreshKPI, 10000);
 })();
 
 </script>
@@ -217,11 +212,11 @@ body.customizing .banner-custom{display:flex}
 </head>
 <body data-sidebar="navy">
 <div class="sidebar" id="sidebar">
-  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Multi-Device • v0.4</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
+  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Multi-Device • v0.5</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
   <nav class="menu">
     <div class="grp hide-mini">Monitoring</div>
     <a class="on" href="dashboard.html">📊 <span class="lbl">Dashboard</span></a>
-    <a href="dashboard.html#devices">🖥️ <span class="lbl">Devices</span></a>
+    <a href="devices.html">🖥️ <span class="lbl">Devices</span></a>
     <a href="topology.html">🗺️ <span class="lbl">Topology</span></a>
     <div class="grp hide-mini">Management</div>
     <a href="#" onclick="alert('Remote Console — P1 next');return false">💻 <span class="lbl">Remote</span></a>
@@ -257,7 +252,7 @@ body.customizing .banner-custom{display:flex}
   <div class="content">
     <div class="banner-custom" id="customBanner">🎛️ <b>Mode Custom</b> — drag panel bebas ke posisi mana saja (GridStack) • ubah ukuran via tombol di panel • tambah panel baru via drawer. Posisi bisa rapat tanpa gap horizontal. Klik <b>Selesai</b> untuk simpan.</div>
     <div class="grid-stack" id="grid"></div>
-    <p class="mut" style="text-align:center;margin-top:14px">NMS v0.4 • GridStack free-drag • <a href="topology.html" style="color:#2563EB;text-decoration:none">Topology →</a></p>
+    <p class="mut" style="text-align:center;margin-top:14px">NMS v0.5 • GridStack free-drag • <a href="topology.html" style="color:#2563EB;text-decoration:none">Topology →</a></p>
   </div>
 </div>
 <div class="custom-overlay" id="customOverlay"></div>
@@ -361,15 +356,15 @@ function tplHTML(id, opts){
           <div class="c"><span>Offline</span><b class="off">2</b><span class="mut">by ping</span></div>
           <div class="c"><span>Failed Login 24h</span><b class="warn">7</b><span class="mut">by auth</span></div>
         </div>`;
-  if(id==='traffic') return `<div class="card" style="height:100%">
+  if(id==='traffic') return `<div class="card traffic-card" style="height:100%">
           <h3>${title||'Traffic per Interface'} <span class="mut" style="font-weight:400">— Device → Interface</span></h3>
           <div style="display:flex;gap:8px;margin:8px 0 10px;flex-wrap:wrap">
-            <select style="flex:1;min-width:120px"><option>RB-01 Core (192.168.1.1)</option><option>RB-02 Cabang A</option></select>
-            <select style="flex:1;min-width:100px"><option selected>ether1 — uplink</option><option>ether2</option></select>
-            <select style="width:80px"><option>24h</option></select>
+            <select class="traffic-dev" style="flex:1;min-width:140px"><option value="">Loading devices…</option></select>
+            <select class="traffic-iface" style="flex:1;min-width:120px"><option value="">— Interface —</option></select>
+            <select class="traffic-range" style="width:90px"><option value="1h">1h</option><option value="24h" selected>24h</option><option value="7d">7d</option></select>
           </div>
           <div style="flex:1;min-height:160px"><canvas data-chart="traffic"></canvas></div>
-          <div style="margin-top:8px"><span class="chip">ether1: 1.2 Gbps</span><span class="chip" style="background:#FEF3C7;color:#92400E">ether2: 800 Mbps</span></div>
+          <div class="traffic-chips" style="margin-top:8px"></div>
         </div>`;
   if(id==='group') return `<div class="card" style="height:100%;display:flex;flex-direction:column">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -603,6 +598,90 @@ function buildDrawer(){
   if(hiddenList.children.length===0) hiddenList.innerHTML='<span class="mut" style="font-size:.72rem">Semua panel tampil</span>';
 }
 
+
+// v0.5 — Traffic Device→Interface picker real (uses /api/devices + /api/interfaces + /api/metrics/device/{id})
+function wireTrafficPickers(){
+  const tok=()=>localStorage.getItem('nms_token');
+  const hdr=()=>{const h={};const t=tok(); if(t) h['Authorization']='Bearer '+t; return h;};
+  async function loadDevicesForTraffic(){
+    try{
+      const r=await fetch('/api/devices',{headers:hdr()}); if(!r.ok) return [];
+      const arr=await r.json(); return Array.isArray(arr)?arr:[];
+    }catch(e){return []}
+  }
+  async function loadIfaces(devId){
+    if(!devId) return [];
+    try{
+      const r=await fetch('/api/interfaces?device_id='+encodeURIComponent(devId),{headers:hdr()}); if(!r.ok) return [];
+      const arr=await r.json(); return Array.isArray(arr)?arr:[];
+    }catch(e){return []}
+  }
+  async function refreshPicker(card){
+    const selDev=card.querySelector('.traffic-dev'), selIface=card.querySelector('.traffic-iface');
+    if(!selDev||!selIface) return;
+    const devs=await loadDevicesForTraffic();
+    const prev=selDev.value;
+    selDev.innerHTML='<option value="">— Device —</option>'+devs.map(d=>`<option value="${d.id}">${d.name} (${d.ip})</option>`).join('');
+    if(prev) selDev.value=prev;
+    // if no selection, pick first
+    if(!selDev.value && devs[0]) selDev.value=devs[0].id;
+    // load iface for selected dev
+    const ifaces=await loadIfaces(selDev.value);
+    const prevIf=selIface.value;
+    if(ifaces.length===0) selIface.innerHTML='<option value="">(no SNMP yet — poll will fill)</option>';
+    else selIface.innerHTML=ifaces.map(i=>`<option value="${i.if_index}">${i.name} — if${i.if_index}</option>`).join('');
+    if(prevIf) selIface.value=prevIf;
+    // chips summary
+    const chips=card.querySelector('.traffic-chips');
+    if(chips){
+      if(ifaces.length) chips.innerHTML=ifaces.slice(0,3).map(i=>`<span class="chip">${i.name}: if${i.if_index}</span>`).join('');
+      else chips.innerHTML='<span class="mut" style="font-size:.72rem">SNMP walk mengisi interfaces setelah poll berikutnya (≤30s)</span>';
+    }
+  }
+  document.querySelectorAll('.traffic-card').forEach(card=>{
+    const selDev=card.querySelector('.traffic-dev'), selIface=card.querySelector('.traffic-iface'), selRange=card.querySelector('.traffic-range');
+    if(!selDev) return;
+    refreshPicker(card);
+    selDev.onchange=async()=>{
+      const ifaces=await loadIfaces(selDev.value);
+      const selIface2=card.querySelector('.traffic-iface');
+      if(ifaces.length===0) selIface2.innerHTML='<option value="">(no SNMP yet)</option>';
+      else selIface2.innerHTML=ifaces.map(i=>`<option value="${i.if_index}">${i.name}</option>`).join('');
+      // trigger chart refresh with real metrics
+      const cv=card.querySelector('canvas[data-chart="traffic"]');
+      if(cv && cv._chart && selDev.value){
+        try{
+          const r=await fetch('/api/metrics/device/'+encodeURIComponent(selDev.value),{headers:hdr()});
+          if(r.ok){
+            const rows=await r.json();
+            if(rows.length){
+              const labels=rows.slice(-12).map(r=>new Date(r.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}));
+              const lats=rows.slice(-12).map(r=>r.latency_ms||0);
+              cv._chart.data.labels=labels;
+              cv._chart.data.datasets[0].label='latency ms ('+selDev.value+')';
+              cv._chart.data.datasets[0].data=lats;
+              cv._chart.update();
+            }
+          }
+        }catch(e){}
+      }
+    };
+    if(selRange) selRange.onchange=()=> selDev.onchange();
+  });
+  // also wire after grid changes
+  if(window.grid) {
+    // re-wire on new cards
+    const origAdd=window.grid.addWidget;
+  }
+}
+setTimeout(wireTrafficPickers, 600);
+// re-wire after GridStack changes
+document.addEventListener('DOMContentLoaded', ()=> setTimeout(wireTrafficPickers, 900));
+if(window.MutationObserver){
+  const mo=new MutationObserver(()=> wireTrafficPickers());
+  mo.observe(document.getElementById('grid'),{childList:true,subtree:true});
+}
+
 // INIT GRID
 function initGrid(){
   const stored=loadStore();
@@ -793,7 +872,7 @@ if(resetBtn) resetBtn.onclick=()=>{
 // Boot
 initGrid();
 
-// --- NMS v0.4 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
+// --- NMS v0.5 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
 (function backendSync(){
   function tok(){ return localStorage.getItem('nms_token'); }
   function hdr(){ var h={}; var t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
@@ -832,6 +911,36 @@ initGrid();
     // keep preview but hint
     console.log('[NMS] no token — preview mode');
   }
+})();
+
+
+// v0.5 — real metrics chart: fetch /api/metrics/device/{id}
+async function fetchDeviceMetrics(id){
+  try{
+    const r=await fetch('/api/metrics/device/'+id, {headers: (window.hdr? hdr(): {})});
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
+}
+window.fetchDeviceMetrics = fetchDeviceMetrics;
+// Auto-refresh KPI from backend every 10s if token exists
+(function(){
+  if(!localStorage.getItem('nms_token')) return;
+  async function refreshKPI(){
+    try{
+      const r=await fetch('/api/devices', {headers: hdr()});
+      if(!r.ok) return;
+      const arr=await r.json();
+      const total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
+      // try to update KPI cards by text
+      document.querySelectorAll('.kpi, [data-kpi]').forEach(el=>{});
+      // update header stats if exists
+      const elTotal=document.getElementById('kpiTotal'); if(elTotal) elTotal.textContent=total;
+      const elOn=document.getElementById('kpiOnline'); if(elOn) elOn.textContent=online;
+      const elOff=document.getElementById('kpiOffline'); if(elOff) elOff.textContent=offline;
+    }catch(e){}
+  }
+  setInterval(refreshKPI, 10000);
 })();
 
 </script>
