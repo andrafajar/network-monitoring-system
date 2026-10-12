@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -241,36 +242,52 @@ func pollDevice(d Device) {
 }
 
 func doPing(ip string) (float64, float64, bool) {
-	p, err := ping.NewPinger(ip)
-	if err != nil {
-		return 0, 100, false
+	for _, priv := range []bool{true, false} {
+		p, err := ping.NewPinger(ip)
+		if err != nil { continue }
+		p.Count = 2
+		p.Timeout = 2 * time.Second
+		p.SetPrivileged(priv)
+		if err := p.Run(); err != nil {
+			if strings.Contains(err.Error(), "permission") || strings.Contains(err.Error(), "operation not permitted") || strings.Contains(err.Error(), "socket") {
+				continue
+			}
+			return 0, 100, false
+		}
+		s := p.Statistics()
+		if s.PacketsRecv == 0 { continue }
+		return float64(s.AvgRtt.Microseconds()) / 1000.0, float64(s.PacketLoss), true
 	}
-	p.Count = 2
-	p.Timeout = 2 * time.Second
-	p.SetPrivileged(false)
-	if err := p.Run(); err != nil {
-		if strings.Contains(err.Error(), "permission") || strings.Contains(err.Error(), "operation not permitted") || strings.Contains(err.Error(), "socket") {
-			if ok, lat := tcpReach(ip); ok {
-				return lat, 0, true
+	if ok, lat := execPing(ip); ok { return lat, 0, true }
+	if ok, lat := tcpReach(ip); ok { return lat, 0, true }
+	return 0, 100, false
+}
+func execPing(ip string) (bool,float64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ping", "-c", "2", "-W", "2", ip).CombinedOutput()
+	if err != nil { return false, 0 }
+	txt := string(out)
+	if !strings.Contains(txt, "bytes from") { return false, 0 }
+	for _, line := range strings.Split(txt, "\n") {
+		if strings.Contains(line, "rtt min/avg/max") || strings.Contains(line, "round-trip min/avg/max") {
+			parts := strings.Split(line, "=")
+			if len(parts) < 2 { continue }
+			vals := strings.Split(strings.TrimSpace(strings.Split(parts[1], " ")[0]), "/")
+			if len(vals) >= 2 {
+				if v, err := strconv.ParseFloat(vals[1], 64); err == nil { return true, v }
 			}
 		}
-		return 0, 100, false
 	}
-	s := p.Statistics()
-	if s.PacketsRecv == 0 {
-		if ok, lat := tcpReach(ip); ok {
-			return lat, 0, true
-		}
-		return 0, 100, false
-	}
-	return float64(s.AvgRtt.Microseconds()) / 1000.0, float64(s.PacketLoss), true
+	if strings.Contains(txt, "0% packet loss") { return true, 1.0 }
+	return false, 0
 }
 func tcpReach(ip string) (bool,float64){
-	ports:=[]string{"22","80","443","161","8291","8728"}
-	start:=time.Now()
-	for _,pt:=range ports{
-		c,err:=net.DialTimeout("tcp", net.JoinHostPort(ip,pt), 1200*time.Millisecond)
-		if err==nil { c.Close(); return true, float64(time.Since(start).Microseconds())/1000.0 }
+	ports:=[]string{"22","80","443","161","8291","8728","80"}
+	for _, pt := range ports {
+		start := time.Now()
+		c, err := net.DialTimeout("tcp", net.JoinHostPort(ip,pt), 1200*time.Millisecond)
+		if err == nil { c.Close(); return true, float64(time.Since(start).Microseconds())/1000.0 }
 	}
 	return false, 0
 }

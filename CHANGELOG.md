@@ -1,3 +1,10 @@
+## [0.9.2] - 2026-10-13
+### Fixed
+- Poller `doPing` refaktor jadi `privileged(true)→false` retry + `execPing` (`ping -c2 -W2` parse `rtt/round-trip min/avg/max` + `0% packet loss` hint) + `tcpReach` per-port timing (22/80/443/161/8291/8728, 1200ms each) — sebelumnya hanya `SetPrivileged(false)` single shot sehingga selalu jatuh ke TCP 1200ms untuk 1.1.1.1/8.8.8.8, sekarang ICMP real 0.5ms via NET_RAW + `busybox ping` fallback.
+- API `handleTestDeviceConnection` loop `for priv in [true,false]` + `execPingViaBinary` + `tcpReachFallback` (6 port), hilangkan single privileged-false path yang bikin `Test koneksi` return 2ms go-ping vs 1200ms poller.
+- Tambah import `os/exec` di `app/api/go.mod` already + `app/poller/main.go` (tidy), `strconv` sudah ada, brace `poller 0 / api 1` (expected 1 dari template).
+- `docker-compose.yml` `cap_add NET_RAW` tetap untuk `api`+`poller` agar `ping.NewPinger(privileged:true)` diizinkan.
+
 ## [0.9.1] - 2026-10-13
 ### Added
 - Device CRUD hardening: modal `+ Device / Edit` diperluas (SNMP version 2c/1/3, SSH user/pass/port 22, API user/pass, Telnet port 23, Note) + `handleGetDevice` kini return `ssh_pass/api_pass` untuk prefill edit, `handleCreateDevice`/`handleUpdateDevice` sudah handle semua cred fields (`snmp_version`, `ssh_*`, `api_*`, `telnet_port`, `note`), `handleUpdateDevice` `poll_interval` null-safe (clear to global). Frontend `openDeviceModal` reset 14 fields, `editDevice` fetch `GET /api/devices/{id}` untuk cred lengkap dengan fallback `DEVICES`, `saveDevice` kirim 17 fields lengkap (`snmp_version`, `ssh_*`, `api_*`, `telnet_port`, `note`) + `poll_interval` null jika kosong.

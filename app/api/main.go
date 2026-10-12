@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os/exec"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -624,31 +625,38 @@ func handleTestDeviceConnection(w http.ResponseWriter, r *http.Request){
 	pingRes := map[string]any{"ok":false}
 	func(){
 		defer func(){ if r:=recover(); r!=nil { pingRes["error"]=fmt.Sprintf("%v",r) } }()
-		p, err := ping.NewPinger(req.IP)
-		if err!=nil { pingRes["error"]=err.Error(); return }
-		p.Count=2; p.Timeout=2*time.Second; p.SetPrivileged(false)
-		if err:=p.Run(); err!=nil {
-			// fallback to system ping if permission denied
-			if strings.Contains(err.Error(),"permission") || strings.Contains(err.Error(),"operation not permitted") || strings.Contains(err.Error(),"socket") {
-				ctx,cancel:=context.WithTimeout(r.Context(),4*time.Second)
-				defer cancel()
-				out, ferr:=execPingFallback(ctx, req.IP)
-				if ferr==nil {
-					pingRes["ok"]=out["ok"]
-					pingRes["latency_ms"]=out["lat"]
-					pingRes["loss"]=out["loss"]
-					return
+		for _, priv := range []bool{true,false} {
+			p, err := ping.NewPinger(req.IP)
+			if err!=nil { continue }
+			p.Count=2; p.Timeout=2*time.Second; p.SetPrivileged(priv)
+			if err:=p.Run(); err!=nil {
+				if strings.Contains(err.Error(),"permission") || strings.Contains(err.Error(),"operation not permitted") || strings.Contains(err.Error(),"socket") {
+					continue
 				}
-				pingRes["error"]=err.Error()+" | fallback: "+fmt.Sprint(ferr)
-				return
+				pingRes["error"]=err.Error(); return
 			}
-			pingRes["error"]=err.Error(); return
+			s:=p.Statistics()
+			if s.PacketsRecv==0 { continue }
+			pingRes["ok"]=true
+			pingRes["latency_ms"]=float64(s.AvgRtt.Microseconds())/1000.0
+			pingRes["loss"]=float64(s.PacketLoss)
+			return
 		}
-		s:=p.Statistics()
-		if s.PacketsRecv==0 { pingRes["loss"]=100; pingRes["error"]="no reply"; return }
-		pingRes["ok"]=true
-		pingRes["latency_ms"]=float64(s.AvgRtt.Microseconds())/1000.0
-		pingRes["loss"]=float64(s.PacketLoss)
+		// exec ping fallback
+		ctx,cancel:=context.WithTimeout(r.Context(),4*time.Second)
+		defer cancel()
+		if out, ferr:=execPingViaBinary(ctx, req.IP); ferr==nil {
+			pingRes["ok"]=out["ok"]
+			pingRes["latency_ms"]=out["lat"]
+			pingRes["loss"]=out["loss"]
+			if out["ok"]==true { return }
+		}
+		// tcp fallback
+		if ok,lat:=tcpReachFallback(req.IP); ok {
+			pingRes["ok"]=true; pingRes["latency_ms"]=lat; pingRes["loss"]=0; return
+		}
+		pingRes["loss"]=100
+		if pingRes["error"]==nil { pingRes["error"]="no reply and fallback unreachable" }
 	}()
 	// snmp
 	snmpRes := map[string]any{"ok":false}
@@ -702,15 +710,37 @@ func handleTestDeviceConnection(w http.ResponseWriter, r *http.Request){
 	if v,ok:=pingRes["ok"].(bool); ok && v { overall="online" }
 	jsonWrite(w, map[string]any{"ip":req.IP, "overall":overall, "ping":pingRes, "snmp":snmpRes, "ssh":sshRes})
 }
+func execPingViaBinary(ctx context.Context, ip string) (map[string]any, error){
+	out, err := exec.CommandContext(ctx, "ping", "-c", "2", "-W", "2", ip).CombinedOutput()
+	if err != nil { return map[string]any{"ok":false}, err }
+	txt := string(out)
+	if !strings.Contains(txt, "bytes from") { return map[string]any{"ok":false}, fmt.Errorf("no reply: %s", strings.TrimSpace(txt)) }
+	lat := 1.0; loss := 0
+	for _, line := range strings.Split(txt, "\n") {
+		if strings.Contains(line, "rtt min/avg/max") || strings.Contains(line, "round-trip min/avg/max") {
+			parts := strings.Split(line, "=")
+			if len(parts) >= 2 {
+				vals := strings.Split(strings.TrimSpace(strings.Split(parts[1], " ")[0]), "/")
+				if len(vals) >= 2 { if v, e := strconv.ParseFloat(vals[1], 64); e==nil { lat = v } }
+			}
+		}
+	}
+	if strings.Contains(txt, "0% packet loss") { loss = 0 } else if strings.Contains(txt, "100% packet loss") { loss = 100 }
+	return map[string]any{"ok":true,"lat":lat,"loss":loss}, nil
+}
+func tcpReachFallback(ip string) (bool,float64){
+	ports:=[]string{"22","80","443","161","8291","8728"}
+	for _, pt := range ports {
+		st := time.Now()
+		c,err:=net.DialTimeout("tcp", net.JoinHostPort(ip,pt), 1200*time.Millisecond)
+		if err==nil { c.Close(); return true, float64(time.Since(st).Microseconds())/1000.0 }
+	}
+	return false,0
+}
 func execPingFallback(ctx context.Context, ip string) (map[string]any, error){
-	_ = ctx
-	// try exec `ping` binary if present (alpine needs iputils)
-	// fallback uses net.DialTimeout TCP 22/80 as reachability hint
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip,"22"), 1500*time.Millisecond)
-	if err==nil { conn.Close(); return map[string]any{"ok":true,"lat":1.5,"loss":0}, nil }
-	conn2, err2 := net.DialTimeout("tcp", net.JoinHostPort(ip,"80"), 1500*time.Millisecond)
-	if err2==nil { conn2.Close(); return map[string]any{"ok":true,"lat":2.0,"loss":0}, nil }
-	return map[string]any{"ok":false}, fmt.Errorf("TCP 22/80 unreachable: %v / %v", err, err2)
+	if out, err := execPingViaBinary(ctx, ip); err==nil { return out, nil }
+	if ok,lat:=tcpReachFallback(ip); ok { return map[string]any{"ok":true,"lat":lat,"loss":0}, nil }
+	return map[string]any{"ok":false}, fmt.Errorf("ping and TCP unreachable")
 }
 
 func handleListLinks(w http.ResponseWriter, r *http.Request){
