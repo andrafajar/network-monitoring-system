@@ -80,7 +80,17 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 select,input,textarea{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:.85rem;width:100%;background:var(--card);color:var(--ink)}
 .table{width:100%;border-collapse:collapse;font-size:.85rem}
 .table th{text-align:left;color:var(--muted);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;padding:10px 8px;border-bottom:1px solid var(--line)}
-.table td{padding:10px 8px;border-bottom:1px solid var(--line)}
+.table td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.table thead th{position:sticky;top:0;background:var(--card);z-index:1;white-space:nowrap}
+.table tbody tr:hover{background:rgba(10,36,99,.04)}
+[data-theme="dark"] .table tbody tr:hover{background:rgba(148,163,184,.08)}
+.table .chip{padding:3px 8px}
+.table .badge{white-space:nowrap}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;letter-spacing:-.01em}
+.table td .mono{font-weight:700}
+.table thead th:last-child{text-align:right}
+.table td:last-child{text-align:right}
+.table .mut{color:var(--muted)}
 .badge{font-size:.68rem;font-weight:800;border-radius:999px;padding:3px 8px}
 .badge.ok{background:#D1FAE5;color:#065F46}.badge.bad{background:#FEE2E2;color:#991B1B}.badge.mid{background:#FEF3C7;color:#92400E}
 .chip{display:inline-block;background:#EFF6FF;color:#1E40AF;border-radius:999px;padding:4px 8px;font-size:.72rem;font-weight:700;margin:2px}
@@ -267,9 +277,10 @@ body.customizing .banner-custom{display:flex}
           <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openDeviceModal()">+ Device</button>
         </div>
       </div>
-      <div style="overflow:auto">
-        <table>
-          <thead><tr><th>ID</th><th>Name • IP</th><th>Type</th><th>Group</th><th>Rack</th><th>Poll</th><th>Status</th><th>Actions</th></tr></thead>
+      <div style="overflow:auto;border:1px solid var(--line);border-radius:10px">
+        <table class="table" style="min-width:860px">
+          <colgroup><col style="width:110px"><col style="width:210px"><col style="width:92px"><col style="width:120px"><col style="width:92px"><col style="width:84px"><col style="width:94px"><col style="width:190px"></colgroup>
+          <thead><tr><th>ID</th><th>Name • IP</th><th>Type</th><th>Group</th><th>Rack</th><th>Poll</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
           <tbody id="devTable"><tr><td colspan="8" class="mut">Memuat...</td></tr></tbody>
         </table>
       </div>
@@ -278,15 +289,24 @@ body.customizing .banner-custom{display:flex}
 
   <div id="view-racks" style="display:none">
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <b>Racks</b>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input id="rackSearch" placeholder="Cari rack..." style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;min-width:180px;background:var(--card);color:var(--ink)" oninput="renderRacksList()">
-          <button class="btn sm ghost" onclick="loadRacks()">↻</button>
-          <button class="btn sm" onclick="openRackModal()">+ Rack</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px"><b style="font-size:.95rem">Racks</b><span class="pill" id="rackCount" style="font-size:.75rem;padding:3px 10px;background:var(--bg);border:1px solid var(--line);border-radius:999px;color:var(--muted)">—</span></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="position:relative;display:flex;align-items:center">
+            <svg class="ico" style="position:absolute;left:10px;width:15px;height:15px;color:var(--muted);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="rackSearch" placeholder="Cari ID, nama, lokasi..." style="padding:7px 10px 7px 32px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:220px;background:var(--card);color:var(--ink)" oninput="renderRacksList()">
+          </div>
+          <button class="btn sm ghost" onclick="loadRacks()" title="Refresh racks" style="padding:7px 10px">↻</button>
+          <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openRackModal()">+ Rack</button>
         </div>
       </div>
-      <div id="racksList" style="display:grid;gap:8px"></div>
+      <div style="overflow:auto;border:1px solid var(--line);border-radius:10px">
+        <table class="table" style="min-width:620px">
+          <colgroup><col style="width:110px"><col><col><col style="width:90px"><col style="width:110px"></colgroup>
+          <thead><tr><th>ID</th><th>Name</th><th>Location</th><th style="text-align:center">Devices</th><th style="text-align:right">Actions</th></tr></thead>
+          <tbody id="racksList"><tr><td colspan="5" class="mut">Memuat...</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -339,9 +359,10 @@ body.customizing .banner-custom{display:flex}
           <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openLinkModal()">+ Link</button>
         </div>
       </div>
-      <div style="overflow:auto">
-        <table>
-          <thead><tr><th>ID</th><th>Src → Dst</th><th>Type</th><th>Description</th><th>Capacity</th><th>Sensor</th><th>BPS</th><th>Act</th></tr></thead>
+      <div style="overflow:auto;border:1px solid var(--line);border-radius:10px">
+        <table class="table" style="min-width:820px">
+          <colgroup><col style="width:110px"><col style="width:170px"><col style="width:96px"><col><col style="width:86px"><col style="width:110px"><col style="width:90px"><col style="width:84px"></colgroup>
+          <thead><tr><th>ID</th><th>Src → Dst</th><th>Type</th><th>Description</th><th>Capacity</th><th>Sensor</th><th style="text-align:right">BPS</th><th style="text-align:right">Act</th></tr></thead>
           <tbody id="linkTable"><tr><td colspan="8" class="mut">Memuat...</td></tr></tbody>
         </table>
       </div>
@@ -679,8 +700,15 @@ function renderLinks(){
   const a=q ? LINKS.filter(l=> (l.id+' '+l.src_id+' '+l.dst_id+' '+(l.description||'')+' '+l.src_type+'/'+l.dst_type).toLowerCase().includes(q)) : LINKS;
   const countEl=document.getElementById('linkCount'); if(countEl) countEl.textContent=a.length+' links';
   const tb=document.getElementById('linkTable');
-  if(a.length===0){ tb.innerHTML='<tr><td colspan="8" class="mut">'+(LINKS.length===0?'Belum ada link — klik + Link':'Tidak ada hasil untuk "'+esc(q)+'"')+'</td></tr>'; return; }
-  tb.innerHTML=a.map(l=> `<tr><td><b>${esc(l.id)}</b></td><td>${esc(l.src_id)} → ${esc(l.dst_id)}</td><td><span class="chip">${esc(l.src_type)}/${esc(l.dst_type)}</span></td><td>${esc(l.description)||'<span class="mut">—</span>'}</td><td class="mut">${(Number(l.capacity||0)/1e9).toFixed(1)}G</td><td class="mut">${l.sensor_device_id? esc(l.sensor_device_id)+':'+(l.sensor_if_index??'—') : '—'}</td><td><b style="color:#2563EB">${esc(String(l.bps||'—'))}</b></td><td><button class="btn sm" style="color:#DC2626" onclick="delLink('${esc(l.id)}')">Hapus</button></td></tr>`).join('');
+  if(a.length===0){ tb.innerHTML='<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">'+(LINKS.length===0?'Belum ada link — klik + Link':'Tidak ada hasil untuk "'+esc(q)+'"')+'</td></tr>'; return; }
+  tb.innerHTML=a.map(l=> {
+    const cap = Number(l.capacity||0);
+    const capLabel = cap>=1e9 ? (cap/1e9).toFixed(1)+'G' : cap>=1e6 ? (cap/1e6).toFixed(0)+'M' : (cap? cap+'bps':'—');
+    const sensor = l.sensor_device_id ? `<span class="mono" style="font-size:.74rem">${esc(l.sensor_device_id)}<span class="mut">:</span>${esc(String(l.sensor_if_index??'—'))}</span>` : '<span class="mut">—</span>';
+    const bps = l.bps!=null && l.bps!=='' ? `<b class="mono" style="color:#2563EB">${esc(String(l.bps))}</b>` : '<span class="mut">—</span>';
+    const desc = esc(l.description||'');
+    return `<tr><td><span class="mono">${esc(l.id)}</span></td><td><span class="mono" style="font-size:.78rem">${esc(l.src_id)} <span class="mut">→</span> ${esc(l.dst_id)}</span></td><td><span class="chip">${esc(l.src_type)}/${esc(l.dst_type)}</span></td><td><span style="font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;display:inline-block;vertical-align:middle" title="${desc}">${desc||'<span class="mut">—</span>'}</span></td><td class="mut" style="text-align:center"><span class="mono">${capLabel}</span></td><td>${sensor}</td><td style="text-align:right">${bps}</td><td style="white-space:nowrap;text-align:right"><button class="act-btn del" onclick="delLink('${esc(l.id)}')" title="Hapus link">✕</button></td></tr>`;
+  }).join('');
 }
 
 function openDeviceModal(edit){
@@ -862,11 +890,13 @@ function renderRacksList(){
   const el=document.getElementById('racksList'); if(!el) return;
   const q=(document.getElementById('rackSearch')?.value||'').toLowerCase().trim();
   let a=RACKS.slice();
-  if(q) a=a.filter(r=> (r.name+r.id+(r.location||'')).toLowerCase().includes(q));
-  if(a.length===0){ el.innerHTML='<div class="mut">Kosong</div>'; return; }
+  if(q) a=a.filter(r=> (r.name+' '+r.id+' '+(r.location||'')).toLowerCase().includes(q));
+  const cntEl=document.getElementById('rackCount'); if(cntEl) cntEl.textContent=a.length+' racks';
+  if(a.length===0){ el.innerHTML='<tr><td colspan="5" class="mut" style="padding:28px 12px;text-align:center">'+(q?'Tidak ada hasil untuk "'+esc(q)+'"':'Belum ada rack — klik + Rack')+'</td></tr>'; return; }
   el.innerHTML=a.map(r=>{
     const cnt=(DEVICES||[]).filter(d=> d.rack_id===r.id).length;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);gap:8px"><div style="min-width:0"><b style="font-size:.84rem">${esc(r.name)} (${esc(r.id)}) <span class="mut" style="font-weight:400;font-size:.72rem">• ${cnt} device${cnt!==1?'s':''}</span></b><div class="mut" style="font-size:.72rem">${esc(r.location||'')}</div></div><button class="btn sm" onclick="delRack('${r.id}')" style="color:#DC2626;border-color:#FECACA">Hapus</button></div>`;
+    const loc=esc(r.location||'');
+    return `<tr><td><span class="mono">${esc(r.id)}</span></td><td><b style="font-size:.84rem">${esc(r.name)}</b></td><td><span class="mut" style="font-size:.82rem">${loc||'<span class="mut">—</span>'}</span></td><td style="text-align:center"><span class="chip" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);font-weight:700">${cnt}</span></td><td style="white-space:nowrap;text-align:right"><button class="act-btn del" onclick="delRack('${esc(r.id)}')" title="Hapus rack">✕ Hapus</button></td></tr>`;
   }).join('');
 }
 // Override loadGroups / loadRacks / loadDevices / renderDevices to use new helpers
@@ -914,7 +944,7 @@ async function _newLoadDevices(){
 loadGroups = _newLoadGroups;
 loadRacks = _newLoadRacks;
 loadDevices = _newLoadDevices;
-// patch renderDevices to add search filter
+// patch renderDevices to add search filter + rapikan kolom
 const _origRenderDevices = renderDevices;
 renderDevices = function(){
   const fg=document.getElementById('filterGroup')?.value||'', fr=document.getElementById('filterRack')?.value||'';
@@ -922,18 +952,21 @@ renderDevices = function(){
   let a=DEVICES.slice();
   if(fg) a=a.filter(d=> d.group_id===fg);
   if(fr) a=a.filter(d=> d.rack_id===fr);
-  if(q) a=a.filter(d=> (d.name+d.ip+d.id).toLowerCase().includes(q));
+  if(q) a=a.filter(d=> (d.name+' '+d.ip+' '+d.id+' '+(d.type||'')).toLowerCase().includes(q));
   const cntEl=document.getElementById('devCount'); if(cntEl) cntEl.textContent=a.length+' devices';
   const gmap=Object.fromEntries(GROUPS.map(g=>[g.id,g.name]));
+  const rmap=Object.fromEntries(RACKS.map(r=>[r.id,r.name]));
   const tbody=document.getElementById('devTable'); if(!tbody) return;
-  if(a.length===0){ tbody.innerHTML='<tr><td colspan="8" class="mut">Tidak ada device (coba tambah)</td></tr>'; return; }
+  if(a.length===0){ tbody.innerHTML='<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">'+(DEVICES.length===0?'Belum ada device — klik + Device':'Tidak ada hasil untuk "'+esc(q)+'"')+'</td></tr>'; return; }
   tbody.innerHTML=a.map(d=> {
-    const st=d.status==='online'?'ok': d.status==='offline'?'off':'mid';
+    const st=d.status==='online'?'ok': d.status==='offline'?'bad':'mid';
     const stLabel=d.status||'unknown';
-    const poll=d.poll_interval? d.poll_interval+'s' : '<span class="mut">ikut group/global</span>';
-    const grp=gmap[d.group_id]|| d.group_id||'<span class="mut">—</span>';
-    const rk=d.rack_id||'<span class="mut">—</span>';
-    return `<tr><td><b>${esc(d.id)}</b></td><td><b style="font-size:.84rem">${esc(d.name)}</b><div class="mut" style="font-size:.72rem">${esc(d.ip)}</div></td><td><span class="chip">${esc(d.type)}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="white-space:nowrap"><div style="display:inline-flex;gap:4px;align-items:center"><button class="act-btn" onclick="openTerminal('${d.id}','ssh')" title="SSH (Port 22)">SSH</button><button class="act-btn" onclick="openTerminal('${d.id}','telnet')" title="Telnet (Port 23)">Tel</button><button class="act-btn" onclick="openTerminal('${d.id}','api')" title="MikroTik REST API">API</button><button class="act-btn" onclick="openWebFig('${d.id}')" title="MikroTik WebFig">WebFig</button><span style="width:1px;height:14px;background:var(--line);margin:0 2px"></span><button class="act-btn" onclick="editDevice('${d.id}')" title="Edit device">Edit</button><button class="act-btn del" onclick="delDevice('${d.id}')" title="Hapus device">✕</button></div></td></tr>`;
+    const poll=d.poll_interval!=null && d.poll_interval!=='' ? '<span class="mono">'+esc(String(d.poll_interval))+'s</span>' : '<span class="mut" title="ikut group/global">—</span>';
+    const grp=d.group_id ? esc(gmap[d.group_id]||d.group_id) : '';
+    const rk=d.rack_id ? esc(rmap[d.rack_id]||d.rack_id) : '';
+    const grpCell=grp ? `<span class="chip" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);font-weight:600">`+grp+`</span>` : '<span class="mut">—</span>';
+    const rkCell=rk ? `<span class="chip" style="background:var(--bg);border:1px solid var(--line);color:var(--ink);font-weight:600">`+rk+`</span>` : '<span class="mut">—</span>';
+    return `<tr><td><span class="mono" title="${esc(d.id)}">${esc(d.id)}</span></td><td><div style="line-height:1.25;min-width:0"><b style="font-size:.84rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px" title="${esc(d.name)}">${esc(d.name)}</b><span class="mono mut" style="font-size:.72rem">${esc(d.ip)}</span></div></td><td><span class="chip">${esc(d.type)}</span></td><td>${grpCell}</td><td>${rkCell}</td><td style="text-align:center">${poll}</td><td><span class="badge ${st}">${esc(stLabel)}</span></td><td style="white-space:nowrap;text-align:right"><div style="display:inline-flex;gap:4px;align-items:center"><button class="act-btn" onclick="openTerminal('${d.id}','ssh')" title="SSH (Port 22)">SSH</button><button class="act-btn" onclick="openTerminal('${d.id}','telnet')" title="Telnet (Port 23)">Tel</button><button class="act-btn" onclick="openTerminal('${d.id}','api')" title="MikroTik REST API">API</button><button class="act-btn" onclick="openWebFig('${d.id}')" title="MikroTik WebFig">WebFig</button><span style="width:1px;height:14px;background:var(--line);margin:0 2px"></span><button class="act-btn" onclick="editDevice('${d.id}')" title="Edit device">Edit</button><button class="act-btn del" onclick="delDevice('${d.id}')" title="Hapus device">✕</button></div></td></tr>`;
   }).join('');
 };
 
