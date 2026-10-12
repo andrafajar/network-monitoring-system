@@ -180,6 +180,13 @@ body.customizing .banner-custom{display:flex}
 #groupsLayout{display:grid;grid-template-columns:320px 1fr;gap:12px}
 @media(max-width:900px){#groupsLayout{grid-template-columns:1fr}}
 
+
+.act-btn{padding:4px 8px;font-size:.72rem;font-weight:700;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:3px;text-decoration:none;transition:background .15s,border-color .15s}
+.act-btn:hover{background:var(--card);border-color:#2563EB;color:#2563EB}
+.act-btn.del{color:#DC2626;border-color:rgba(220,38,38,.2)}
+.act-btn.del:hover{background:#FEE2E2;border-color:#DC2626}
+[data-theme="dark"] .act-btn.del:hover{background:rgba(220,38,38,.2)}
+
 </style>
 </head>
 <body data-sidebar="navy">
@@ -237,15 +244,20 @@ body.customizing .banner-custom{display:flex}
 
   <div id="view-devices">
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <b>Devices</b>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <b style="font-size:.95rem">Devices</b>
+          <span class="pill" id="devCount" style="font-size:.75rem;padding:3px 10px;background:var(--bg);border:1px solid var(--line);border-radius:999px;color:var(--muted)">—</span>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <input id="devSearch" placeholder="Cari name / IP..." style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;min-width:180px;background:var(--card);color:var(--ink)" oninput="renderDevices()">
-          <select id="filterGroup"><option value="">All groups</option></select>
-          <select id="filterRack"><option value="">All racks</option></select>
-          <span class="mut" style="font-size:.72rem" id="devCount">—</span>
-          <button class="btn sm ghost" onclick="loadDevices()">↻</button>
-          <button class="btn sm" style="background:#0A2463;color:#fff" onclick="openDeviceModal()">+ Device</button>
+          <div style="position:relative;display:flex;align-items:center">
+            <svg class="ico" style="position:absolute;left:10px;width:15px;height:15px;color:var(--muted);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="devSearch" placeholder="Cari nama, IP, ID..." style="padding:7px 10px 7px 32px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:220px;background:var(--card);color:var(--ink)" oninput="renderDevices()">
+          </div>
+          <select id="filterGroup" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:auto;min-width:130px;background:var(--card);color:var(--ink)"><option value="">All groups</option></select>
+          <select id="filterRack" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:auto;min-width:120px;background:var(--card);color:var(--ink)"><option value="">All racks</option></select>
+          <button class="btn sm ghost" onclick="loadDevices()" title="Refresh devices" style="padding:7px 10px">↻</button>
+          <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openDeviceModal()">+ Device</button>
         </div>
       </div>
       <div style="overflow:auto">
@@ -613,7 +625,7 @@ function renderDevices(){
     const poll=d.poll_interval? d.poll_interval+'s' : '<span class="mut">ikut group/global</span>';
     const grp=gmap[d.group_id]|| d.group_id||'<span class="mut">—</span>';
     const rk=d.rack_id||'<span class="mut">—</span>';
-    return `<tr><td><b>${d.id}</b></td><td><b style="font-size:.84rem">${d.name}</b><div class="mut" style="font-size:.72rem">${d.ip}</div></td><td><span class="chip">${d.type}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="editDevice('${d.id}')">Edit</button><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn sm" onclick="openTerminal('${d.id}','ssh')" title="SSH via bastion">SSH</button><button class="btn sm" onclick="openTerminal('${d.id}','telnet')">Telnet</button><button class="btn sm" onclick="openTerminal('${d.id}','api')">API</button><button class="btn sm" onclick="openWebFig('${d.id}')">WebFig</button></div><button class="btn sm" style="color:#DC2626" onclick="delDevice('${d.id}')">Hapus</button></td></tr>`;
+    return `<tr><td><b>${d.id}</b></td><td><b style="font-size:.84rem">${d.name}</b><div class="mut" style="font-size:.72rem">${d.ip}</div></td><td><span class="chip">${d.type}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="white-space:nowrap"><div style="display:inline-flex;gap:4px;align-items:center"><button class="act-btn" onclick="openTerminal('${d.id}','ssh')" title="SSH (Port 22)">SSH</button><button class="act-btn" onclick="openTerminal('${d.id}','telnet')" title="Telnet (Port 23)">Tel</button><button class="act-btn" onclick="openTerminal('${d.id}','api')" title="MikroTik REST API">API</button><button class="act-btn" onclick="openWebFig('${d.id}')" title="MikroTik WebFig">WebFig</button><span style="width:1px;height:14px;background:var(--line);margin:0 2px"></span><button class="act-btn" onclick="editDevice('${d.id}')" title="Edit device">Edit</button><button class="act-btn del" onclick="delDevice('${d.id}')" title="Hapus device">✕</button></div></td></tr>`;
   }).join('');
 }
 async function loadLinks(){
@@ -838,7 +850,7 @@ renderDevices = function(){
     const poll=d.poll_interval? d.poll_interval+'s' : '<span class="mut">ikut group/global</span>';
     const grp=gmap[d.group_id]|| d.group_id||'<span class="mut">—</span>';
     const rk=d.rack_id||'<span class="mut">—</span>';
-    return `<tr><td><b>${esc(d.id)}</b></td><td><b style="font-size:.84rem">${esc(d.name)}</b><div class="mut" style="font-size:.72rem">${esc(d.ip)}</div></td><td><span class="chip">${esc(d.type)}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="editDevice('${d.id}')">Edit</button><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn sm" onclick="openTerminal('${d.id}','ssh')" title="SSH via bastion">SSH</button><button class="btn sm" onclick="openTerminal('${d.id}','telnet')">Telnet</button><button class="btn sm" onclick="openTerminal('${d.id}','api')">API</button><button class="btn sm" onclick="openWebFig('${d.id}')">WebFig</button></div><button class="btn sm" style="color:#DC2626" onclick="delDevice('${d.id}')">Hapus</button></td></tr>`;
+    return `<tr><td><b>${esc(d.id)}</b></td><td><b style="font-size:.84rem">${esc(d.name)}</b><div class="mut" style="font-size:.72rem">${esc(d.ip)}</div></td><td><span class="chip">${esc(d.type)}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="white-space:nowrap"><div style="display:inline-flex;gap:4px;align-items:center"><button class="act-btn" onclick="openTerminal('${d.id}','ssh')" title="SSH (Port 22)">SSH</button><button class="act-btn" onclick="openTerminal('${d.id}','telnet')" title="Telnet (Port 23)">Tel</button><button class="act-btn" onclick="openTerminal('${d.id}','api')" title="MikroTik REST API">API</button><button class="act-btn" onclick="openWebFig('${d.id}')" title="MikroTik WebFig">WebFig</button><span style="width:1px;height:14px;background:var(--line);margin:0 2px"></span><button class="act-btn" onclick="editDevice('${d.id}')" title="Edit device">Edit</button><button class="act-btn del" onclick="delDevice('${d.id}')" title="Hapus device">✕</button></div></td></tr>`;
   }).join('');
 };
 

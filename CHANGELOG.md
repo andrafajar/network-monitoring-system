@@ -1,3 +1,10 @@
+## [0.8.0] - 2026-10-13
+### Changed
+- Device-list (view-devices) rapikan: header 2-baris → 1 baris rapi dengan border-bottom, pill `devCount`, search dengan icon 🔍 (`padding-left 32px`), select `filterGroup`/`filterRack` sizing konsisten, tombol refresh & +Device aligned.
+### Improved
+- Actions per-row: 4 tombol remote (SSH/Tel/WebFig) + Edit/Hapus disatukan `inline-flex nowrap` dengan style `.act-btn` minimalis (border tipis, hover biru) + divider — tetap 4 tombol sesuai request, tidak lagi menumpuk `flex-wrap` berantakan.
+- Table overflow tetap `auto`, row actions `white-space:nowrap` agar tidak meluber di layar kecil.
+
 ## [0.7.4] - 2026-10-13
 ### Fixed
 - Topbar left-padding adjusted (`padding-left: 56px`) across all pages to reserve clear space for `#sbToggle` floating button, preventing it from overlapping page titles / tabs.
