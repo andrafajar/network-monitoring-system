@@ -1,3 +1,7 @@
+## [0.7.4] - 2026-10-13
+### Fixed
+- Topbar left-padding adjusted (`padding-left: 56px`) across all pages to reserve clear space for `#sbToggle` floating button, preventing it from overlapping page titles / tabs.
+
 ## [0.7.3] - 2026-10-13
 ### Fixed
 - Sidebar hide button (`#sbToggle`): positioning logic mobile (≤1000px) vs desktop, smooth transition `14px` when minimized / mobile, `274px` when desktop expanded.
