@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.7.2 — 2026-10-12
+- **Fix side panel tumpang tindih & content geser:** orphan block duplikat (`<button id="sideToggle">` + `<nav class="menu">` emoji + `<div class="theme-panel">` duplikat) tertinggal di 4 file setelah migrasi ke sidebar minimal floating — menyebabkan 2× `nav` + 2× `theme-panel`, DOM body `sidebar → sideToggle → nav(orphan) → theme(orphan) → overlay → sbToggle → main` sehingga `.sidebar.minimized ~ .main` dan `.sidebar:not(.minimized) ~ #sbToggle` (sibling `~`) salah hit, content `main` kegeser jauh (`mainRect.x 851` bukan `260`, `margin-left:260px` dobel-hit) dan panel bawah masih kelihatan di belakang. Perbaikan: hapus exakt segmen `sideToggle..orphan theme` (1686 char) di `dashboard/devices/topology/users-roles`, `div` balance `108/108` (was `-2`), `nav` 2→1, `theme` 2→1, `sideToggle` 1→0, `sbToggle`/`sbOverlay` tetap 1, `node --check` OK, `margin-left:260px` + `transform:translateX(-100%)` + overlay sibling kembali akurat.
+
+
 ## v0.7.1 — 2026-10-13
 - **Fix dashboard traffic CPU loop:** `MutationObserver` di `dashboard.html` sebelumnya memicu `wireTrafficPickers()` setiap mutasi `grid` (childList+subtree) tanpa debounce sehingga setiap `innerHTML` rewrite → mutasi baru → fetch `/api/devices` + `/api/interfaces` → rewrite lagi = tight loop; `chart.update()` juga dipanggil tiap perubahan picker. Perbaikan: (1) guard `wireTrafficPickers._running` + `try/finally` anti re-entrance, (2) ganti observer langsung ke `scheduleWireTraffic(350)` debounce via `_wireTimer`, (3) `tryObs` tunggu `#grid` ada sebelum observe, (4) cache `selDev.dataset._lastHTML` agar `innerHTML` device selector hanya ditulis jika HTML benar-benar berubah, mengurangi thrash DOM. `node --check` OK, `refreshKPI` tetap 10s, `tick` 1s tidak tersentuh.
 
