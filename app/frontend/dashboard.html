@@ -610,7 +610,7 @@ function buildDrawer(){
 
 
 // v0.5 — Traffic Device→Interface picker real (uses /api/devices + /api/interfaces + /api/metrics/device/{id})
-function wireTrafficPickers(){
+function wireTrafficPickers(){ if(wireTrafficPickers._running) return; wireTrafficPickers._running=true; try{
   const tok=()=>localStorage.getItem('nms_token');
   const hdr=()=>{const h={};const t=tok(); if(t) h['Authorization']='Bearer '+t; return h;};
   async function loadDevicesForTraffic(){
@@ -631,7 +631,7 @@ function wireTrafficPickers(){
     if(!selDev||!selIface) return;
     const devs=await loadDevicesForTraffic();
     const prev=selDev.value;
-    selDev.innerHTML='<option value="">— Device —</option>'+devs.map(d=>`<option value="${d.id}">${d.name} (${d.ip})</option>`).join('');
+    const _newDevHTML='<option value="">— Device —</option>'+devs.map(d=>`<option value="${d.id}">${d.name} (${d.ip})</option>`).join(''); if(selDev.dataset._lastHTML!==_newDevHTML){ selDev.innerHTML=_newDevHTML; selDev.dataset._lastHTML=_newDevHTML; }
     if(prev) selDev.value=prev;
     // if no selection, pick first
     if(!selDev.value && devs[0]) selDev.value=devs[0].id;
@@ -683,13 +683,16 @@ function wireTrafficPickers(){
     // re-wire on new cards
     const origAdd=window.grid.addWidget;
   }
-}
-setTimeout(wireTrafficPickers, 600);
-// re-wire after GridStack changes
-document.addEventListener('DOMContentLoaded', ()=> setTimeout(wireTrafficPickers, 900));
+}catch(e){}finally{wireTrafficPickers._running=false;}}
+let _wireTimer=null;
+function scheduleWireTraffic(delay=350){ clearTimeout(_wireTimer); _wireTimer=setTimeout(()=>{ if(!wireTrafficPickers._running) wireTrafficPickers(); }, delay); }
+setTimeout(()=>scheduleWireTraffic(400), 600);
+document.addEventListener('DOMContentLoaded', ()=> setTimeout(()=>scheduleWireTraffic(400), 900));
 if(window.MutationObserver){
-  const mo=new MutationObserver(()=> wireTrafficPickers());
-  mo.observe(document.getElementById('grid'),{childList:true,subtree:true});
+  const mo=new MutationObserver(()=> scheduleWireTraffic(350));
+  window._nmsTrafficMO=mo;
+  const tryObs=()=>{ const g=document.getElementById('grid'); if(g) mo.observe(g,{childList:true,subtree:true}); else setTimeout(tryObs, 400); };
+  tryObs();
 }
 
 // INIT GRID

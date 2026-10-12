@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.7.1 — 2026-10-13
+- **Fix dashboard traffic CPU loop:** `MutationObserver` di `dashboard.html` sebelumnya memicu `wireTrafficPickers()` setiap mutasi `grid` (childList+subtree) tanpa debounce sehingga setiap `innerHTML` rewrite → mutasi baru → fetch `/api/devices` + `/api/interfaces` → rewrite lagi = tight loop; `chart.update()` juga dipanggil tiap perubahan picker. Perbaikan: (1) guard `wireTrafficPickers._running` + `try/finally` anti re-entrance, (2) ganti observer langsung ke `scheduleWireTraffic(350)` debounce via `_wireTimer`, (3) `tryObs` tunggu `#grid` ada sebelum observe, (4) cache `selDev.dataset._lastHTML` agar `innerHTML` device selector hanya ditulis jika HTML benar-benar berubah, mengurangi thrash DOM. `node --check` OK, `refreshKPI` tetap 10s, `tick` 1s tidak tersentuh.
+
+
 ## v0.7.0 — 2026-10-13
 - **Sidebar minimal + floating toggle:** ganti emoji → SVG stroke 1.7 minimalis (18px) untuk semua menu; sidebar `position:fixed` + `transform:translateX(-100%)` saat minimize (beneran hilang seperti versi HP), tombol floating `#sbToggle` ☰/✕ di pojok kiri atas (14px saat minimize, 274px saat expanded desktop, tetap 14px di mobile ≤1000px), overlay `.sidebar-overlay.show`; `#sideToggle`/`#topMinBtn` di-hide; persist `nms_sidebar_mini`/`nms_sidebar_theme`/`nms_dark`
 - **Devices → submenu expand/collapse:** `Devices` jadi parent `.has-sub` dengan chevron rotate, submenu `Device List / Racks / Groups / Links` (`devices.html#devices|#racks|#groups|#links`), toggle `toggleDevSub(event)` persist `nms_dev_sub`, auto-expand saat klik dari minimized, sinkron dengan hash & `localStorage nms_dev_view`
