@@ -4,78 +4,175 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NMS — Devices</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 <style>
+
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--muted:#64748B;--ink:#0F172A;--sidebar-bg:#0A2463}
-[data-theme="dark"]{--bg:#020617;--card:#1E293B;--line:#334155;--muted:#94A3B8;--ink:#F1F5F9}
-body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex}
-.sidebar{width:260px;min-width:260px;background:var(--sidebar-bg);color:#E2E8F0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto;transition:width .2s}
-.sidebar.minimized{width:72px;min-width:72px}
-.sidebar.minimized .hide-mini{display:none}
+:root{--sidebar-bg:#0A2463;--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--ink:#0F172A;--muted:#64748B}
+[data-sidebar="navy"]{--sidebar-bg:#0A2463}
+[data-sidebar="green"]{--sidebar-bg:#064E3B}
+[data-sidebar="purple"]{--sidebar-bg:#4C1D95}
+[data-sidebar="slate"]{--sidebar-bg:#1E293B}
+[data-sidebar="crimson"]{--sidebar-bg:#7F1D1D}
+[data-sidebar="teal"]{--sidebar-bg:#134E4A}
+[data-theme="dark"]{--bg:#020617;--card:#1E293B;--line:#334155;--ink:#F1F5F9;--muted:#94A3B8}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);display:flex;min-height:100vh;transition:background .2s,color .2s}
+.sidebar{width:260px;background:var(--sidebar-bg);color:#CBD5E1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto;transition:width .22s;flex-shrink:0}
+.sidebar.minimized{width:72px}
+.sidebar.minimized .hide-mini{display:none!important}
 .sidebar.minimized .logo{padding:12px 6px;gap:6px}
-.logo{padding:14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
-.logo .ic{width:36px;height:36px;min-width:36px;border-radius:10px;background:#fff;color:#0A2463;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.sidebar.minimized .menu a{justify-content:center;padding:10px 8px}
+.sidebar.minimized .menu a .lbl{display:none}
+.logo{padding:14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.logo .ic{width:36px;height:36px;min-width:36px;border-radius:10px;background:#fff;color:#0A2463;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;letter-spacing:-.02em;box-shadow:0 1px 2px rgba(0,0,0,.08), 0 0 0 1px rgba(255,255,255,.12) inset}
+.logo .ic svg{width:20px;height:20px}
 .sidebar.minimized .logo .ic{width:32px;height:32px;min-width:32px;border-radius:8px;font-size:.95rem}
-.logo b{color:#fff;font-size:.95rem;display:block}
+.logo b{color:#fff;font-size:.95rem;line-height:1.1;display:block}
 .logo small{color:#94A3B8;font-size:.68rem}
-#sideToggle{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem}
-.nav{padding:10px 8px;flex:1}
-.nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:#CBD5E1;text-decoration:none;font-size:.84rem;font-weight:600;margin-bottom:4px}
-.nav a.active,.nav a:hover{background:rgba(255,255,255,.1);color:#fff}
-.sidebar.minimized .nav a{justify-content:center;padding:10px 6px}
-.sidebar.minimized .nav a span.txt{display:none}
-.theme-area{padding:10px 8px;border-top:1px solid rgba(255,255,255,.08)}
-.dark-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.08);cursor:pointer;font-size:.78rem}
-.switch{position:relative;display:inline-block;width:38px;height:22px}
+#sideToggle{width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:18px;line-height:1;transition:background .15s}
+#sideToggle:hover{background:rgba(255,255,255,.16)}
+.sidebar.minimized #sideToggle{margin-left:4px}
+.menu{padding:10px 8px 8px;flex:1}
+.menu .grp{font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94A3B8;padding:14px 10px 6px}
+.menu a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:#CBD5E1;text-decoration:none;font-size:.85rem;font-weight:600}
+.menu a.on{background:rgba(255,255,255,.12);color:#fff}
+.menu a:hover{background:rgba(255,255,255,.07)}
+.theme-panel{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08);margin-top:auto}
+.theme-panel .tl{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94A3B8}
+.dots{display:flex;gap:6px;margin:8px 0 10px;flex-wrap:wrap}
+.dots button{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;outline:none}
+.dots button.active{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.dark-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border-radius:999px;padding:7px 10px;font-size:.75rem;font-weight:600;cursor:pointer;user-select:none}
+.dark-row:hover{background:rgba(255,255,255,.12)}
+.switch{position:relative;width:38px;height:22px;flex-shrink:0}
 .switch input{opacity:0;width:0;height:0}
-.slider{position:absolute;inset:0;background:#334155;border-radius:999px;transition:.2s}
-.slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
-input:checked + .slider{background:#FACC15}
-input:checked + .slider:before{transform:translateX(16px)}
-.dots{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-.dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer}
-.dot.on{border-color:#fff;box-shadow:0 0 0 2px var(--sidebar-bg)}
-.main{flex:1;min-width:0;padding:18px 18px 32px}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-.h1{font-size:1.15rem;font-weight:800}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 1px 6px rgba(0,0,0,.04)}
-.btn{padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:700;cursor:pointer;font-size:.82rem}
-.btn.primary{background:#0A2463;color:#fff;border-color:#0A2463}
-.btn.primary:hover{background:#1E3A8A}
-.btn.ghost{background:transparent}
-.btn.sm{padding:5px 8px;font-size:.75rem}
-.badge{padding:2px 7px;border-radius:999px;font-size:.68rem;font-weight:700;border:1px solid var(--line)}
-.badge.ok{background:#D1FAE5;color:#065F46;border-color:#A7F3D0}
-.badge.off{background:#FEE2E2;color:#991B1B;border-color:#FCA5A5}
-.badge.mid{background:#FEF3C7;color:#92400E;border-color:#FDE68A}
-table{width:100%;border-collapse:collapse;font-size:.82rem}
-th{color:var(--muted);text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);font-weight:700}
-td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
-tr:hover td{background:rgba(37,99,235,.03)}
-input,select{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
-input:focus,select:focus{outline:none;border-color:#2563EB}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
-.chip{padding:4px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:.72rem}
-.mut{color:var(--muted)}
-#toast{position:fixed;right:16px;bottom:16px;background:#0A2463;color:#fff;padding:10px 14px;border-radius:10px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.2);display:none;z-index:99}
+.slider{position:absolute;inset:0;background:rgba(255,255,255,.25);border-radius:999px;transition:.2s}
+.slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.switch input:checked + .slider{background:#2563EB}
+.switch input:checked + .slider:before{transform:translateX(16px)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+.topbar h2{font-size:1.05rem;font-weight:800}
+.topbar .sp{flex:1}
+.topbar .pill{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.78rem;color:var(--muted)}
+.btn{background:#0A2463;color:#fff;border:0;border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:.82rem;display:inline-flex;align-items:center;gap:6px}
+.btn.ghost{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+.btn.sm{padding:6px 10px;font-size:.76rem;border-radius:8px}
+.customize-btn{background:#fff;border:1.5px solid #E2E8F0;color:#0F172A}
+[data-theme="dark"] .customize-btn{background:var(--card);border-color:var(--line);color:var(--ink)}
+.customize-btn.active{background:#0A2463;color:#fff;border-color:#0A2463}
+#topMinBtn{display:none}
+@media(max-width:1000px){#topMinBtn{display:inline-flex}.sidebar{position:fixed;left:0;top:0;z-index:50;transform:translateX(0)}.sidebar.minimized{transform:translateX(-100%)}}
+.content{padding:16px 14px 30px;max-width:1400px;margin:0 auto;width:100%}
+.grid-stack{margin:0 -6px}
+.grid-stack-item-content{inset:6px!important;overflow:visible!important;background:transparent!important;border:0!important}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.kpi{grid-template-columns:repeat(2,1fr)}}
+.kpi .c{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.kpi b{font-size:1.5rem;display:block}
+.kpi span{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.kpi .on{color:#059669}.kpi .off{color:#DC2626}.kpi .warn{color:#D97706}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.04);height:100%;display:flex;flex-direction:column;overflow:hidden}
+.card h3{font-size:.88rem;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.mut{color:var(--muted);font-size:.82rem}
+select,input,textarea{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:.85rem;width:100%;background:var(--card);color:var(--ink)}
+.table{width:100%;border-collapse:collapse;font-size:.85rem}
+.table th{text-align:left;color:var(--muted);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;padding:10px 8px;border-bottom:1px solid var(--line)}
+.table td{padding:10px 8px;border-bottom:1px solid var(--line)}
+.badge{font-size:.68rem;font-weight:800;border-radius:999px;padding:3px 8px}
+.badge.ok{background:#D1FAE5;color:#065F46}.badge.bad{background:#FEE2E2;color:#991B1B}.badge.mid{background:#FEF3C7;color:#92400E}
+.chip{display:inline-block;background:#EFF6FF;color:#1E40AF;border-radius:999px;padding:4px 8px;font-size:.72rem;font-weight:700;margin:2px}
+[data-theme="dark"] .chip{background:#1E3A8A;color:#BFDBFE}
+[data-theme="dark"] .badge.ok{background:#064E3B;color:#6EE7B7}
+[data-theme="dark"] .badge.bad{background:#7F1D1D;color:#FECACA}
+.widget-bar{position:absolute;top:8px;right:8px;background:#0F172A;color:#fff;border-radius:999px;padding:4px 6px;gap:4px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:5;display:none}
+body.customizing .widget-bar{display:flex}
+.widget-bar .drag{cursor:grab;padding:5px 6px;border-radius:999px;background:rgba(255,255,255,.14);font-size:.7rem;line-height:1;user-select:none}
+.widget-bar .drag:active{cursor:grabbing}
+.widget-bar .w-title{font-size:.68rem;font-weight:700;opacity:.85;margin:0 2px}
+.size-group{display:flex;gap:2px;background:rgba(255,255,255,.1);border-radius:999px;padding:2px}
+.size-group button{border:0;background:transparent;color:#fff;font-size:.65rem;font-weight:700;padding:3px 6px;border-radius:999px;cursor:pointer}
+.size-group button.on{background:#fff;color:#0F172A}
+.widget-bar .hide-btn{border:0;background:rgba(255,255,255,.14);color:#fff;border-radius:999px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.7rem}
+body.customizing .grid-stack-item{outline:1px dashed rgba(148,163,184,.6);outline-offset:-6px;border-radius:18px}
+body.customizing .grid-stack-item:hover{outline-color:#2563EB}
+.grid-stack-placeholder .placeholder-content{border:2px dashed #2563EB!important;background:rgba(37,99,235,.08)!important;border-radius:16px!important}
+.banner-custom{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;border-radius:12px;padding:10px 12px;font-size:.78rem;display:none;margin-bottom:12px;align-items:center;gap:8px}
+body.customizing .banner-custom{display:flex}
+[data-theme="dark"] .banner-custom{background:#1E3A8A;border-color:#334155;color:#BFDBFE}
+.custom-overlay{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:60;display:none}
+.custom-overlay.open{display:block}
+.custom-drawer{position:fixed;top:0;right:0;width:380px;max-width:92vw;height:100vh;background:var(--card);border-left:1px solid var(--line);z-index:61;transform:translateX(100%);transition:transform .22s;overflow:auto;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
+.custom-drawer.open{transform:translateX(0)}
+.drawer-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--card);z-index:2}
+.drawer-head b{font-size:.92rem;font-weight:800}
+.drawer-body{padding:14px 14px 20px;flex:1}
+.drawer-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:8px;position:sticky;bottom:0;background:var(--card)}
+.widget-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--bg)}
+.widget-item .wi-icon{width:30px;height:30px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.widget-item .wi-main{flex:1;min-width:0}
+.widget-item .wi-main b{display:block;font-size:.82rem;line-height:1.1}
+.widget-item .wi-main small{color:var(--muted);font-size:.7rem}
+.eye{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:.85rem}
+.eye.on{background:#D1FAE5;border-color:#A7F3D0;color:#065F46}
+.size-mini{display:flex;gap:4px;margin-top:6px}
+.size-mini button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 6px;font-size:.66rem;font-weight:700;cursor:pointer;color:var(--muted)}
+.size-mini button.on{background:#0A2463;color:#fff;border-color:#0A2463}
+.add-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.add-card{border:1.5px dashed var(--line);border-radius:12px;padding:10px;background:var(--card);cursor:pointer;text-align:center;transition:border-color .15s,background .15s}
+.add-card:hover{border-color:#2563EB;background:var(--bg)}
+.add-card b{display:block;font-size:.78rem;margin-top:4px}
+.add-card small{font-size:.68rem;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:16px;max-width:520px;width:100%;padding:16px;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+.modal-box h3{font-size:.95rem;font-weight:800;margin-bottom:8px}
+.modal-box label{font-size:.78rem;font-weight:600;margin-top:8px;display:block}
+
+#termModal{display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px}
+#termBox{width:min(1100px,96vw);height:min(78vh,720px);background:#0F172A;border:1px solid #334155;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+#termHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:#0A2463;color:#fff;font-weight:700}
+#termHeader select,#termHeader button{padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:600;font-size:.78rem}
+#termGrid{flex:1;display:grid;gap:6px;padding:6px;background:#020617;overflow:auto}
+#termGrid.cols1{grid-template-columns:1fr}
+#termGrid.cols2{grid-template-columns:1fr 1fr}
+.termPane{background:#000;border:1px solid #1E293B;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-height:180px}
+.termPane .paneBar{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#0F172A;color:#CBD5E1;font-size:.72rem;border-bottom:1px solid #1E293B}
+.termPane .xterm{flex:1;padding:4px}
+
 </style>
 </head>
-<body>
-<aside class="sidebar" id="sidebar">
-  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Devices • v0.5</small></div></div><button id="sideToggle" title="Minimize">‹</button></div>
-  <nav class="nav">
-    <a href="dashboard.html">📊 <span class="txt">Dashboard</span></a>
-    <a href="topology.html">🗺️ <span class="txt">Topology</span></a>
-    <a href="devices.html" class="active">🖥️ <span class="txt">Devices</span></a>
-    <a href="#" onclick="alert('Users & Roles —soon');return false">👥 <span class="txt">Users & Roles</span></a>
-    <a href="index.html" onclick="localStorage.removeItem('nms_token');">↩️ <span class="txt">Logout</span></a>
+<body data-sidebar="navy">
+<div class="sidebar" id="sidebar">
+  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Devices • v0.5</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
+  <nav class="menu">
+    <div class="grp hide-mini">Monitoring</div>
+    <a href="dashboard.html">📊 <span class="lbl">Dashboard</span></a>
+    <a class="on" href="devices.html">🖥️ <span class="lbl">Devices</span></a>
+    <a href="topology.html">🗺️ <span class="lbl">Topology</span></a>
+    <div class="grp hide-mini">Management</div>
+    <a href="devices.html">💻 <span class="lbl">Remote</span></a>
+    <a href="users-roles.html">👥 <span class="lbl">Users & Roles</span></a>
+    <a href="#" onclick="alert('Alerts — P1 next');return false">🔔 <span class="lbl">Alerts</span></a>
+    <div class="grp hide-mini">System</div>
+    <a href="index.html" onclick="localStorage.clear()">🚪 <span class="lbl">Logout</span></a>
   </nav>
-  <div class="theme-area hide-mini">
-    <label class="dark-row"><span><span id="darkIcon">🌙</span> Dark mode</span><label class="switch"><input type="checkbox" id="darkChk"><span class="slider"></span></label></label>
-    <div class="dots" id="dots"><div class="dot on" data-theme="navy" style="background:#0A2463" title="Navy"></div><div class="dot" data-theme="green" style="background:#064E3B" title="Green"></div><div class="dot" data-theme="purple" style="background:#4C1D95" title="Purple"></div><div class="dot" data-theme="slate" style="background:#1E293B" title="Slate"></div><div class="dot" data-theme="crimson" style="background:#7F1D1D" title="Crimson"></div><div class="dot" data-theme="teal" style="background:#134E4A" title="Teal"></div></div>
+  <div class="theme-panel">
+    <div class="tl hide-mini">Warna Sidebar</div>
+    <div class="dots">
+      <button data-theme="navy" style="background:#0A2463" title="Navy"></button>
+      <button data-theme="green" style="background:#059669" title="Green"></button>
+      <button data-theme="purple" style="background:#7C3AED" title="Purple"></button>
+      <button data-theme="slate" style="background:#334155" title="Slate"></button>
+      <button data-theme="crimson" style="background:#DC2626" title="Crimson"></button>
+      <button data-theme="teal" style="background:#0F766E" title="Teal"></button>
+    </div>
+    <label class="dark-row hide-mini"><span style="display:flex;align-items:center;gap:6px"><span id="darkIcon">🌙</span> Dark mode</span><span class="switch"><input type="checkbox" id="darkToggle"><span class="slider"></span></span></label>
   </div>
-</aside>
+</div>
+<div class="sidebar-overlay" id="sbOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40"></div>
 <div class="main">
   <div class="topbar">
     <div>
@@ -211,25 +308,135 @@ async function jdel(p){ const r=await fetch(API+p,{method:'DELETE',headers:hdr()
 
 // theme/minimize
 (function(){
-  const sb=document.getElementById('sidebar'), tg=document.getElementById('sideToggle');
-  const darkChk=document.getElementById('darkChk'), darkIcon=document.getElementById('darkIcon');
-  function applyMini(m){ sb.classList.toggle('minimized',m); tg.textContent=m?'›':'‹'; localStorage.setItem('nms_sidebar_mini', m?'1':'0'); }
-  function applyDark(on){ document.documentElement.setAttribute('data-theme', on?'dark':''); darkChk.checked=on; darkIcon.textContent=on?'☀️':'🌙'; localStorage.setItem('nms_dark', on?'1':'0'); }
-  const savedMini=localStorage.getItem('nms_sidebar_mini'); applyMini(savedMini===null? window.innerWidth<=1000 : savedMini==='1');
-  applyDark(localStorage.getItem('nms_dark')==='1');
-  tg.onclick=()=> applyMini(!sb.classList.contains('minimized'));
-  darkChk.onchange=()=> applyDark(darkChk.checked);
-  document.querySelectorAll('.dot').forEach(d=> d.onclick=()=>{
-    document.querySelectorAll('.dot').forEach(x=>x.classList.remove('on')); d.classList.add('on');
-    const th=d.dataset.theme; const map={navy:'#0A2463',green:'#064E3B',purple:'#4C1D95',slate:'#1E293B',crimson:'#7F1D1D',teal:'#134E4A'};
-    document.documentElement.style.setProperty('--sidebar-bg', map[th]||'#0A2463'); localStorage.setItem('nms_sidebar_theme', th);
-  });
-  const th=localStorage.getItem('nms_sidebar_theme'); if(th){ document.querySelector(`.dot[data-theme="${th}"]`)?.click(); }
+  const body=document.body, sb=document.getElementById('sidebar'), darkToggle=document.getElementById('darkToggle');
+  const dots=document.querySelectorAll('.dots button');
+  const sideToggle=document.getElementById('sideToggle'), topMinBtn=document.getElementById('topMinBtn');
+  function applyMini(m){ sb.classList.toggle('minimized',m); localStorage.setItem('nms_sidebar_mini',m?'1':'0'); if(sideToggle){ sideToggle.textContent=m?'›':'‹'; sideToggle.title=m?'Expand sidebar':'Minimize sidebar'; } const ov=document.getElementById('sbOverlay'); if(ov){ const isMobile=window.innerWidth<=1000; ov.style.display = (!m && isMobile) ? 'block' : 'none'; } }
+  const _rawMini=localStorage.getItem('nms_sidebar_mini');
+  const savedMini=_rawMini===null ? window.innerWidth<=1000 : _rawMini==='1';
+  const savedSidebar=localStorage.getItem('nms_sidebar_theme')||'navy';
+  const savedDark=localStorage.getItem('nms_dark')==='1';
+  applyMini(savedMini);
+  body.setAttribute('data-sidebar', savedSidebar);
+  dots.forEach(b=>{ if(b.dataset.theme===savedSidebar) b.classList.add('active')});
+  if(savedDark){ body.setAttribute('data-theme','dark'); if(darkToggle) darkToggle.checked=true; }
+  function syncDarkIcon(){ const ic=document.getElementById('darkIcon'); if(ic) ic.textContent = (document.body.getAttribute('data-theme')==='dark') ? '☀️' : '🌙'; }
+  function toggleMini(){ applyMini(!sb.classList.contains('minimized')); }
+  if(sideToggle) sideToggle.onclick=toggleMini;
+  if(topMinBtn) topMinBtn.onclick=toggleMini;
+  const ovEl=document.getElementById('sbOverlay'); if(ovEl) ovEl.onclick=toggleMini;
+  dots.forEach(b=>{ b.onclick=()=>{ const t=b.dataset.theme; body.setAttribute('data-sidebar',t); localStorage.setItem('nms_sidebar_theme',t); dots.forEach(x=>x.classList.remove('active')); b.classList.add('active'); }});
+  if(darkToggle){ darkToggle.onchange=()=>{ if(darkToggle.checked){ body.setAttribute('data-theme','dark'); localStorage.setItem('nms_dark','1'); } else { body.removeAttribute('data-theme'); localStorage.setItem('nms_dark','0'); } syncDarkIcon(); }; }
+  syncDarkIcon();
 })();
 function closeModal(id){ document.getElementById(id).style.display='none'; }
 function openModal(id){ document.getElementById(id).style.display='flex'; }
 
 let GROUPS=[], RACKS=[], DEVICES=[];
+
+// --- terminal bastion (shared xterm split + WebFig) — synced from topology ---
+let termPanes=[]; let termPaneCounter=0;
+function termWSUrl(proto, devId){
+  const p = proto==='api' ? 'mikrotik-api' : proto;
+  return (location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/bastion/'+p+'?device_id='+encodeURIComponent(devId)+'&token='+encodeURIComponent(tok()||'');
+}
+function ensureTermDeps(){ return typeof Terminal!=='undefined'; }
+async function refreshTermDevSel(){
+  const sel=document.getElementById('termDevSel'); if(!sel) return;
+  try{
+    const r=await fetch('/api/devices',{headers:hdr()}); if(!r.ok) return;
+    const devs=await r.json(); window._NMS_DEVS=devs;
+    sel.innerHTML='<option value="">+ device…</option>'+devs.map(d=>`<option value="${d.id}">${d.id} — ${d.name} (${d.ip})</option>`).join('');
+  }catch(e){}
+}
+function createTermPane(devId, proto){
+  proto=proto||document.getElementById('termProto').value||'ssh';
+  devId=devId||document.getElementById('termDevSel').value|| (window._NMS_DEVS&&window._NMS_DEVS[0]&&window._NMS_DEVS[0].id) || '';
+  if(!devId){ alert('Pilih device dulu (login + pilih device)'); return; }
+  const grid=document.getElementById('termGrid');
+  const paneId='pane_'+(++termPaneCounter);
+  const pane=document.createElement('div'); pane.className='termPane'; pane.id=paneId;
+  const dname=(window._NMS_DEVS&&window._NMS_DEVS.find(d=>d.id===devId)||{name:devId}).name;
+  pane.innerHTML=`<div class="paneBar"><span>${proto.toUpperCase()} • ${devId} — ${dname}</span><span><button class="btn sm" onclick="termReconnect('${paneId}')">↻ Reconnect</button><button class="btn sm" onclick="termClosePane('${paneId}')">✕</button></span></div><div class="xterm" id="${paneId}_xterm"></div>`;
+  grid.appendChild(pane);
+  const g=document.getElementById('termGrid'); g.className = g.children.length<=1 ? 'cols1' : 'cols2';
+  document.getElementById('termHint').textContent=g.children.length+' pane(s)';
+  if(proto==='api'){
+    const xel=document.getElementById(paneId+'_xterm');
+    xel.style.padding='8px'; xel.style.fontFamily='ui-monospace,monospace'; xel.style.fontSize='.78rem'; xel.style.color='#CBD5E1'; xel.style.whiteSpace='pre-wrap'; xel.style.overflow='auto'; xel.style.background='#000';
+    xel.textContent='[API] GET /rest/interface — loading...\n';
+    fetch('/api/bastion/mikrotik-api?device_id='+encodeURIComponent(devId)+'&path=/rest/interface',{headers:hdr()}).then(r=>r.text().then(t=>{ xel.textContent='[API] GET /rest/interface @ '+devId+'\nStatus '+r.status+'\n\n'+t.slice(0,8000); })).catch(e=> xel.textContent='[API] error: '+e.message);
+    const bar=pane.querySelector('.paneBar span'); bar.style.cursor='pointer'; bar.title='Click to change REST path';
+    bar.onclick=()=>{
+      const p=prompt('REST path', '/rest/interface'); if(!p) return;
+      xel.textContent='[API] GET '+p+' — loading...\n';
+      fetch('/api/bastion/mikrotik-api?device_id='+encodeURIComponent(devId)+'&path='+encodeURIComponent(p),{headers:hdr()}).then(r=>r.text().then(t=>{ xel.textContent='[API] GET '+p+' @ '+devId+'\nStatus '+r.status+'\n\n'+t.slice(0,8000); }));
+    };
+    termPanes.push({id:paneId, devId, proto, el:pane, ws:null, term:null});
+    return;
+  }
+  if(!ensureTermDeps()){ pane.querySelector('.xterm').textContent='xterm not loaded — cek CDN'; return; }
+  const term=new Terminal({cursorBlink:true, fontSize:13, theme:{background:'#000000',foreground:'#CBD5E1'}});
+  const fit=new FitAddon.FitAddon(); term.loadAddon(fit);
+  term.open(document.getElementById(paneId+'_xterm'));
+  try{ fit.fit(); }catch(e){}
+  term.writeln('\x1b[33m[NMS] '+proto.toUpperCase()+' → '+devId+' — connecting via bastion (WS)...\x1b[0m');
+  const wsUrl=termWSUrl(proto, devId);
+  let ws; try{ ws=new WebSocket(wsUrl); }catch(e){ term.writeln('\x1b[31m[ws] '+e.message+'\x1b[0m'); }
+  termPanes.push({id:paneId, devId, proto, term, fit, ws, el:pane});
+  if(!ws) return;
+  ws.binaryType='arraybuffer';
+  ws.onopen=()=> term.writeln('\x1b[32m[ws] connected → '+wsUrl.replace(/token=[^&]+/,'token=***')+'\x1b[0m');
+  ws.onmessage=(ev)=>{
+    if(typeof ev.data==='string'){ term.write(ev.data); }
+    else { const arr=new Uint8Array(ev.data); let s=''; for(let i=0;i<arr.length;i++) s+=String.fromCharCode(arr[i]); term.write(s); }
+  };
+  ws.onclose=()=> term.writeln('\r\n\x1b[33m[ws] closed\x1b[0m');
+  ws.onerror=()=> term.writeln('\r\n\x1b[31m[ws] error\x1b[0m');
+  term.onData(d=>{ if(ws && ws.readyState===1) ws.send(d); });
+  const ro=new ResizeObserver(()=>{ try{ fit.fit(); if(ws.readyState===1) ws.send(JSON.stringify({type:'resize', cols: term.cols, rows: term.rows})); }catch(e){} });
+  ro.observe(pane);
+}
+function termClosePane(id){ const idx=termPanes.findIndex(p=>p.id===id); if(idx===-1) return; const p=termPanes[idx]; try{ p.ws&&p.ws.close(); }catch(e){} try{ p.term&&p.term.dispose(); }catch(e){} p.el.remove(); termPanes.splice(idx,1); const g=document.getElementById('termGrid'); g.className=g.children.length<=1?'cols1':'cols2'; document.getElementById('termHint').textContent=g.children.length+' pane(s)'; }
+function termAddPane(){ createTermPane(); }
+function termReconnect(id){ const p=termPanes.find(x=>x.id===id); if(!p) return; if(p.proto==='api'){ const x=p.el.querySelector('.xterm'); x.textContent='[API] reload...'; fetch('/api/bastion/mikrotik-api?device_id='+encodeURIComponent(p.devId)+'&path=/rest/interface',{headers:hdr()}).then(r=>r.text().then(t=> x.textContent='[API] @ '+p.devId+' '+r.status+'\n'+t.slice(0,8000)) ); return; } try{ p.ws&&p.ws.close(); }catch(e){} p.term.writeln('\r\n\x1b[33m[reconnect] '+p.proto+' → '+p.devId+'\x1b[0m'); const wsUrl=termWSUrl(p.proto, p.devId); const ws=new WebSocket(wsUrl); p.ws=ws; ws.binaryType='arraybuffer'; ws.onopen=()=> p.term.writeln('\x1b[32m[ws] reconnected\x1b[0m'); ws.onmessage=(ev)=>{ if(typeof ev.data==='string') p.term.write(ev.data); else { const a=new Uint8Array(ev.data); let s=''; for(let i=0;i<a.length;i++) s+=String.fromCharCode(a[i]); p.term.write(s);} }; ws.onclose=()=> p.term.writeln('\r\n\x1b[33m[ws] closed\x1b[0m'); ws.onerror=()=> p.term.writeln('\r\n\x1b[31m[ws] error\x1b[0m'); }
+function termSplitToggle(){ const g=document.getElementById('termGrid'); g.className = g.className==='cols1' ? 'cols2' : 'cols1'; }
+function termClear(){ termPanes.forEach(p=> p.term&&p.term.clear()); }
+function openTermTopology(nodeId, proto){
+  let devId=nodeId;
+  document.getElementById('termModal').style.display='flex';
+  document.getElementById('termModal').style.alignItems='center';
+  document.getElementById('termModal').style.justifyContent='center';
+  document.getElementById('termProto').value=proto||'ssh';
+  document.getElementById('termTitle').textContent='Terminal — '+(proto||'ssh').toUpperCase()+' @ '+(devId||'');
+  if(!window._NMS_DEVS || !window._NMS_DEVS.length) refreshTermDevSel().then(()=>{ if(devId) document.getElementById('termDevSel').value=devId; if(termPanes.length===0) createTermPane(devId, proto); else if(devId) createTermPane(devId, proto); });
+  else { if(devId) document.getElementById('termDevSel').value=devId; if(termPanes.length===0) createTermPane(devId, proto); else if(devId) createTermPane(devId, proto); }
+}
+function closeTermModal(){ document.getElementById('termModal').style.display='none'; }
+function openWebFigTopology(nodeId){
+  let devId=nodeId;
+  if(!devId){ alert('Pilih device dulu'); return; }
+  document.getElementById('webfigModal').style.display='flex';
+  document.getElementById('webfigModal').style.alignItems='center';
+  document.getElementById('webfigModal').style.justifyContent='center';
+  document.getElementById('webfigTitle').textContent='WebFig — '+devId;
+  document.getElementById('webfigOpenRaw').href='/api/bastion/webfig?device_id='+encodeURIComponent(devId);
+  document.getElementById('webfigFrame').src='/api/bastion/webfig?device_id='+encodeURIComponent(devId);
+  document.getElementById('webfigFrame').onerror=()=>{ document.getElementById('webfigFrame').src='/api/bastion/webconsole/'+encodeURIComponent(devId); };
+}
+function closeWebfigModal(){ document.getElementById('webfigModal').style.display='none'; document.getElementById('webfigFrame').src='about:blank'; }
+document.getElementById('termModal').addEventListener('click',(e)=>{ if(e.target.id==='termModal') closeTermModal(); });
+document.getElementById('webfigModal').addEventListener('click',(e)=>{ if(e.target.id==='webfigModal') closeWebfigModal(); });
+document.getElementById('termProto').onchange=()=>{};
+document.getElementById('termDevSel').onchange=(e)=>{ if(e.target.value) createTermPane(e.target.value); };
+setTimeout(refreshTermDevSel, 600);
+
+function openTerminal(devId, proto){ return openTermTopology(devId, proto); }
+function openWebFig(devId){ return openWebFigTopology(devId); }
+// legacy popup console fallback (keep for compatibility)
+function openWebConsole(devId){ window.open('/api/bastion/webconsole/'+encodeURIComponent(devId), '_blank'); }
+
+
 
 async function loadGroups(){
   try{
@@ -282,7 +489,7 @@ function renderDevices(){
     const poll=d.poll_interval? d.poll_interval+'s' : '<span class="mut">ikut group/global</span>';
     const grp=gmap[d.group_id]|| d.group_id||'<span class="mut">—</span>';
     const rk=d.rack_id||'<span class="mut">—</span>';
-    return `<tr><td><b>${d.id}</b></td><td><b style="font-size:.84rem">${d.name}</b><div class="mut" style="font-size:.72rem">${d.ip}</div></td><td><span class="chip">${d.type}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="editDevice('${d.id}')">Edit</button><button class="btn sm" onclick="openWebConsole('${d.id}')">Web Console</button><button class="btn sm" style="color:#DC2626" onclick="delDevice('${d.id}')">Hapus</button></td></tr>`;
+    return `<tr><td><b>${d.id}</b></td><td><b style="font-size:.84rem">${d.name}</b><div class="mut" style="font-size:.72rem">${d.ip}</div></td><td><span class="chip">${d.type}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="editDevice('${d.id}')">Edit</button><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn sm" onclick="openTerminal('${d.id}','ssh')" title="SSH via bastion">SSH</button><button class="btn sm" onclick="openTerminal('${d.id}','telnet')">Telnet</button><button class="btn sm" onclick="openTerminal('${d.id}','api')">API</button><button class="btn sm" onclick="openWebFig('${d.id}')">WebFig</button></div><button class="btn sm" style="color:#DC2626" onclick="delDevice('${d.id}')">Hapus</button></td></tr>`;
   }).join('');
 }
 async function loadLinks(){
@@ -353,8 +560,6 @@ async function saveLink(){
   await jpost('/api/links', body); closeModal('modalLink'); toast('Link created'); loadLinks();
 }
 async function delLink(id){ if(!confirm('Hapus link '+id+'?')) return; await jdel('/api/links/'+id); toast('Deleted'); loadLinks(); }
-function openWebConsole(id){ window.open('/api/bastion/webconsole/'+id, '_blank'); }
-
 document.getElementById('filterGroup').onchange=renderDevices;
 document.getElementById('filterRack').onchange=renderDevices;
 
@@ -362,5 +567,37 @@ document.getElementById('filterRack').onchange=renderDevices;
 loadGroups().then(()=> loadRacks()).then(()=> loadDevices()).then(()=> loadLinks());
 if(!tok()){ document.getElementById('devTable').innerHTML='<tr><td colspan="8" class="mut">Login dulu di <a href="index.html" style="color:#2563EB">index.html</a> (superadmin/Admin@123) — lalu refresh.</td></tr>'; }
 </script>
+<!-- Terminal Modal (shared bastion WS — same as devices.html) -->
+<div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">
+  <div id="termBox">
+    <div id="termHeader">
+      <span id="termTitle">Terminal — bastion</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="termProto"><option value="ssh">SSH 22</option><option value="telnet">Telnet 23</option><option value="api">MikroTik API</option></select>
+        <select id="termDevSel" style="min-width:140px"><option value="">+ device…</option></select>
+        <select id="termSplit"><option value="1">1 pane</option><option value="2">2 panes (split)</option></select>
+        <button onclick="termAddPane()">+ Pane</button>
+        <button onclick="termSplitToggle()">Toggle split</button>
+        <button onclick="termClear()">Clear</button>
+        <button onclick="closeTermModal()" style="background:#DC2626;border-color:#DC2626">✕ Tutup</button>
+      </div>
+    </div>
+    <div id="termGrid" class="cols1"></div>
+    <div style="padding:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#0F172A;border-top:1px solid #1E293B">
+      <span style="font-size:.72rem;color:#94A3B8">Credentials di server — browser hanya WS + token. API pane = REST viewer.</span>
+      <span id="termHint" style="font-size:.72rem;color:#94A3B8;margin-left:auto"></span>
+    </div>
+  </div>
+</div>
+<!-- WebFig iframe modal -->
+<div id="webfigModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:91;align-items:center;justify-content:center;padding:12px">
+  <div style="width:min(1200px,96vw);height:min(82vh,760px);background:#0F172A;border:1px solid #334155;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#0A2463;color:#fff;font-weight:700">
+      <span id="webfigTitle">WebFig</span>
+      <div style="display:flex;gap:8px"><a id="webfigOpenRaw" href="#" target="_blank" style="color:#93C5FD;font-size:.78rem">Open raw →</a><button onclick="closeWebfigModal()" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:600">✕ Tutup</button></div>
+    </div>
+    <iframe id="webfigFrame" style="flex:1;width:100%;border:0;background:#fff"></iframe>
+  </div>
+</div>
 </body>
 </html>

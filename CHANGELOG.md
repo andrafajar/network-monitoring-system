@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.0 — 2026-10-13
+- Frontend Terminal bastion split-screen: `xterm.js@5.3.0` + FitAddon 2-pane (`cols1/cols2`) popup `#termModal` + WebFig iframe `#webfigModal` konsisten di `devices.html` & `topology.html` (WS `/api/bastion/ssh|telnet|mikrotik-api`, creds server-side, `termWSUrl` token query, `createTermPane`/`termClosePane`/`termReconnect`/`termSplitToggle`, `openTerminal`/`openWebFig`/`openWebConsole` aliases)
+- Devices: `renderDevices` action SSH/Telnet/API/WebFig per-row; Topology: `showSelection` + `dblclick` → SSH/WebFig via `openTermTopology`/`openWebFigTopology` (mock→real dev map), `#webfigFrame` onerror fallback ke `/api/bastion/webconsole`
+- Users & Roles Manager `users-roles.html`: CRUD `roles` (name, mikrotik_group read/write/full, menu_permissions JSON, group_ids via `role_device_groups`) + CRUD `users` (username, password bcrypt, role 1:1), modal `+ Role`/`+ User`, `PUT/DELETE /api/users/{id}` & `/api/roles/{id}`, `GET /api/roles/{id}/groups` & `GET /api/role-groups`, RADIUS sync stub log di `handleUpdateUser/handleCreateUser`
+- API: `handleUpdateRole/handleDeleteRole/handleUpdateUser/handleDeleteUser/handleGetRoleGroups/handleListRoleGroupsDetail`, `handleListRoles` `COALESCE(json_agg...)`, `gorilla/websocket` dep, bastion handlers server-side WS proxy, `requireMenu` 3-dimensi (menu+device_group+mikrotik_group)
+- Poller: HC 64-bit counters `.1.3.6.1.2.1.31.1.1.1.6/.10` prefer, `fetchCpuMem` hrProcessorLoad avg, 32/64-bit wrap `max32/isHC`, `!didSNMP && online` pseudo-bps fix
+- Nav sync 4 pages (dashboard/devices/topology/users-roles): `class="on" href` konsisten, theme/dark/minimize `localStorage nms_sidebar_theme/nms_dark/nms_sidebar_mini` + single `#sideToggle` ‹/› + `#sbOverlay` mobile, dashboard head duplicate `backendSync` inside `<script src>` dibersihkan, `hdrSync` rename di `topoSync` IIFE
+- Migrations: `003_device_creds.sql` (ssh_user/pass/port, api_user/pass, telnet_port, note per-device bastion)
+
+
 ## v0.5.0 — 2026-10-12
 - RBAC 3 dimensi enforcement: `roles.menu_permissions` + `role_device_groups` — `requireMenu` di semua endpoint CRUD (dashboard/topology/devices/users/settings), filter `devices` & `device-groups` by allowedGroupIDs, SuperAdmin bypass
 - Poller interval custom per-device > per-group > global (1s ticker, `effectiveInterval`), sudah verified 10s/30s/60s/300s

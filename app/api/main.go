@@ -22,15 +22,18 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/ssh"
 )
 
 var (
 	db  *pgxpool.Pool
 	rdb *redis.Client
 	jwtKey []byte
+	wsUpgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }, ReadBufferSize: 4096, WriteBufferSize: 4096}
 )
 
 type ctxKey string
@@ -121,8 +124,14 @@ func main(){
 		// users & roles
 		pr.Get("/api/users", handleListUsers)
 		pr.Post("/api/users", handleCreateUser)
+		pr.Put("/api/users/{id}", handleUpdateUser)
+		pr.Delete("/api/users/{id}", handleDeleteUser)
 		pr.Get("/api/roles", handleListRoles)
 		pr.Post("/api/roles", handleCreateRole)
+		pr.Put("/api/roles/{id}", handleUpdateRole)
+		pr.Delete("/api/roles/{id}", handleDeleteRole)
+		pr.Get("/api/roles/{id}/groups", handleGetRoleGroups)
+		pr.Get("/api/role-groups", handleListRoleGroupsDetail)
 		// metrics
 		pr.Get("/api/metrics/device/{id}", handleDeviceMetrics)
 		pr.Get("/api/metrics/link/{id}", handleLinkMetrics)
@@ -257,6 +266,8 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request){
 func bearer(r *http.Request) string {
 	h:= r.Header.Get("Authorization")
 	if strings.HasPrefix(h,"Bearer ") { return strings.TrimPrefix(h,"Bearer ") }
+	if t:= r.URL.Query().Get("token"); t!="" { return t }
+	if c:= r.URL.Query().Get("access_token"); c!="" { return c }
 	return ""
 }
 func parseToken(ss string) (jwt.MapClaims,bool){
@@ -447,7 +458,7 @@ func handleDeleteRack(w http.ResponseWriter, r *http.Request){
 func handleListDevices(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"dashboard"); !ok { return }
 	au,_:= getAuthUser(r.Context())
-	query := `SELECT id,name,ip,type,rack_id,group_id::text,status,x,y,poll_interval,snmp_community FROM devices`
+	query := `SELECT id,name,ip,type,rack_id,group_id::text,status,x,y,poll_interval,snmp_community,snmp_version,ssh_user,ssh_port,api_user,telnet_port,note FROM devices`
 	args := []any{}
 	if au!=nil && len(au.AllowedGroupIDs)>0 {
 		ph, a := allowedGroupPlaceholders(au)
@@ -459,21 +470,25 @@ func handleListDevices(w http.ResponseWriter, r *http.Request){
 	defer func(){ if rows!=nil{rows.Close()} }()
 	var out []map[string]any
 	for rows!=nil&&rows.Next(){
-		var id,name,ip,typ,rack,group,status,comm string
+		var id,name,ip,typ,status,comm,sver,sshU,apiU,note string
 		var x,y int
-		var pi sql.NullInt32
-		var rackNull, groupNull sql.NullString
-		rows.Scan(&id,&name,&ip,&typ,&rackNull,&groupNull,&status,&x,&y,&pi,&comm)
-		rack=rackNull.String; group=groupNull.String
+		var pi,sp,tp sql.NullInt32
+		var rackNull, groupNull, sshUNull, apiUNull, noteNull sql.NullString
+		var sverNull, commNull sql.NullString
+		// scan in same order as SELECT
+		rows.Scan(&id,&name,&ip,&typ,&rackNull,&groupNull,&status,&x,&y,&pi,&commNull,&sverNull,&sshUNull,&sp,&apiUNull,&tp,&noteNull)
+		rack:=rackNull.String; group:=groupNull.String; comm=commNull.String; sver=sverNull.String; sshU=sshUNull.String; apiU=apiUNull.String; note=noteNull.String
 		piv:=any(nil); if pi.Valid{ piv=pi.Int32 }
-		out=append(out, map[string]any{"id":id,"name":name,"ip":ip,"type":typ,"rack_id":rack,"group_id":group,"status":status,"x":x,"y":y,"poll_interval":piv,"snmp_community":comm})
+		spv:=22; if sp.Valid && sp.Int32>0 { spv=int(sp.Int32) }
+		tpv:=23; if tp.Valid && tp.Int32>0 { tpv=int(tp.Int32) }
+		out=append(out, map[string]any{"id":id,"name":name,"ip":ip,"type":typ,"rack_id":rack,"group_id":group,"status":status,"x":x,"y":y,"poll_interval":piv,"snmp_community":comm,"snmp_version":sver,"ssh_user":sshU,"ssh_port":spv,"api_user":apiU,"telnet_port":tpv,"note":note})
 	}
 	if out==nil{out=[]map[string]any{}}
 	jsonWrite(w,out)
 }
 func handleCreateDevice(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
-	var req struct{ ID string `json:"id"`; Name string `json:"name"`; IP string `json:"ip"`; Type string `json:"type"`; RackID *string `json:"rack_id"`; GroupID *string `json:"group_id"`; PollInterval *int `json:"poll_interval"`; X *int `json:"x"`; Y *int `json:"y"`}
+	var req struct{ ID string `json:"id"`; Name string `json:"name"`; IP string `json:"ip"`; Type string `json:"type"`; RackID *string `json:"rack_id"`; GroupID *string `json:"group_id"`; PollInterval *int `json:"poll_interval"`; X *int `json:"x"`; Y *int `json:"y"`; SNMPCommunity *string `json:"snmp_community"`; SNMPVersion *string `json:"snmp_version"`; SSHUser *string `json:"ssh_user"`; SSHPass *string `json:"ssh_pass"`; SSHPort *int `json:"ssh_port"`; APIUser *string `json:"api_user"`; APIPass *string `json:"api_pass"`; TelnetPort *int `json:"telnet_port"`; Note *string `json:"note"`}
 	if err:=readJSON(r,&req); err!=nil||req.Name==""||req.IP==""{ jsonError(w,400,"name and ip required"); return}
 	if req.ID==""{ req.ID = strings.ToUpper(strings.ReplaceAll(req.Name," ","-")) + fmt.Sprintf("-%d", time.Now().Unix()%10000) }
 	if req.Type==""{ req.Type="mikrotik" }
@@ -481,17 +496,29 @@ func handleCreateDevice(w http.ResponseWriter, r *http.Request){
 	var gid any; if req.GroupID!=nil && *req.GroupID!=""{gid=*req.GroupID} else { gid=nil }
 	var rid any; if req.RackID!=nil && *req.RackID!=""{rid=*req.RackID} else { rid=nil }
 	var pi any; if req.PollInterval!=nil{pi=*req.PollInterval} else {pi=nil}
-	_,err:= db.Exec(r.Context(), `INSERT INTO devices(id,name,ip,type,rack_id,group_id,poll_interval,x,y) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		req.ID, req.Name, req.IP, req.Type, rid, gid, pi, x,y)
+	comm:="public"; if req.SNMPCommunity!=nil { comm=*req.SNMPCommunity }
+	sver:="2c"; if req.SNMPVersion!=nil && *req.SNMPVersion!="" { sver=*req.SNMPVersion }
+	sshU:=""; if req.SSHUser!=nil { sshU=*req.SSHUser }
+	sshP:=""; if req.SSHPass!=nil { sshP=*req.SSHPass }
+	sshPort:=22; if req.SSHPort!=nil && *req.SSHPort>0 { sshPort=*req.SSHPort }
+	apiU:=""; if req.APIUser!=nil { apiU=*req.APIUser }
+	apiP:=""; if req.APIPass!=nil { apiP=*req.APIPass }
+	tport:=23; if req.TelnetPort!=nil && *req.TelnetPort>0 { tport=*req.TelnetPort }
+	note:=""; if req.Note!=nil { note=*req.Note }
+	_,err:= db.Exec(r.Context(), `INSERT INTO devices(id,name,ip,type,rack_id,group_id,poll_interval,x,y,snmp_community,snmp_version,ssh_user,ssh_pass,ssh_port,api_user,api_pass,telnet_port,note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+		req.ID, req.Name, req.IP, req.Type, rid, gid, pi, x,y, comm, sver, sshU, sshP, sshPort, apiU, apiP, tport, note)
 	if err!=nil{ jsonError(w,500,err.Error()); return}
 	jsonWrite(w, map[string]any{"id":req.ID})
 }
 func handleGetDevice(w http.ResponseWriter, r *http.Request){
 	id:= chi.URLParam(r,"id")
-	var name,ip,typ,status string; var x,y int
-	err:= db.QueryRow(r.Context(),"SELECT name,ip,type,status,x,y FROM devices WHERE id=$1", id).Scan(&name,&ip,&typ,&status,&x,&y)
+	var name,ip,typ,status,comm,sver,sshU,sshP,apiU,apiP,note string; var x,y,sp,tp int
+	var pi sql.NullInt32
+	var gid,rid sql.NullString
+	err:= db.QueryRow(r.Context(),"SELECT name,ip,type,status,x,y,poll_interval,group_id::text,rack_id,snmp_community,snmp_version,ssh_user,ssh_pass,ssh_port,api_user,api_pass,telnet_port,note FROM devices WHERE id=$1", id).Scan(&name,&ip,&typ,&status,&x,&y,&pi,&gid,&rid,&comm,&sver,&sshU,&sshP,&sp,&apiU,&apiP,&tp,&note)
 	if err!=nil{ jsonError(w,404,"not found"); return}
-	jsonWrite(w, map[string]any{"id":id,"name":name,"ip":ip,"type":typ,"status":status,"x":x,"y":y})
+	piv:=any(nil); if pi.Valid{ piv=pi.Int32 }
+	jsonWrite(w, map[string]any{"id":id,"name":name,"ip":ip,"type":typ,"status":status,"x":x,"y":y,"poll_interval":piv,"group_id":gid.String,"rack_id":rid.String,"snmp_community":comm,"snmp_version":sver,"ssh_user":sshU,"ssh_port":sp,"api_user":apiU,"telnet_port":tp,"note":note})
 }
 func handleUpdateDevice(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
@@ -509,6 +536,15 @@ func handleUpdateDevice(w http.ResponseWriter, r *http.Request){
 	if x,ok:=req["x"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET x=$1 WHERE id=$2", int(x),id)}
 	if y,ok:=req["y"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET y=$1 WHERE id=$2", int(y),id)}
 	if pi,ok:=req["poll_interval"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET poll_interval=$1 WHERE id=$2", int(pi),id)}
+	if v,ok:=req["snmp_community"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET snmp_community=$1 WHERE id=$2", v,id)}
+	if v,ok:=req["snmp_version"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET snmp_version=$1 WHERE id=$2", v,id)}
+	if v,ok:=req["ssh_user"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET ssh_user=$1 WHERE id=$2", v,id)}
+	if v,ok:=req["ssh_pass"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET ssh_pass=$1 WHERE id=$2", v,id)}
+	if v,ok:=req["ssh_port"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET ssh_port=$1 WHERE id=$2", int(v),id)}
+	if v,ok:=req["api_user"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET api_user=$1 WHERE id=$2", v,id)}
+	if v,ok:=req["api_pass"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET api_pass=$1 WHERE id=$2", v,id)}
+	if v,ok:=req["telnet_port"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET telnet_port=$1 WHERE id=$2", int(v),id)}
+	if v,ok:=req["note"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET note=$1 WHERE id=$2", v,id)}
 	jsonWrite(w,map[string]any{"ok":true})
 }
 func handleDeleteDevice(w http.ResponseWriter, r *http.Request){
@@ -658,10 +694,10 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request){
 	jsonWrite(w, map[string]any{"id":uid})
 }
 func handleListRoles(w http.ResponseWriter, r *http.Request){
-	rows,_:= db.Query(r.Context(),"SELECT id::text,name,mikrotik_group,menu_permissions FROM roles ORDER BY name")
+	rows,_:= db.Query(r.Context(),`SELECT r.id::text, r.name, r.mikrotik_group, r.menu_permissions, COALESCE(json_agg(rg.group_id::text) FILTER (WHERE rg.group_id IS NOT NULL),'[]'::json) as groups FROM roles r LEFT JOIN role_device_groups rg ON rg.role_id=r.id GROUP BY r.id ORDER BY r.name`)
 	defer func(){ if rows!=nil{rows.Close()} }()
 	var out []map[string]any
-	for rows!=nil&&rows.Next(){ var id,name,mk string; var perm json.RawMessage; rows.Scan(&id,&name,&mk,&perm); out=append(out, map[string]any{"id":id,"name":name,"mikrotik_group":mk,"menu_permissions":perm})}
+	for rows!=nil&&rows.Next(){ var id,name,mk string; var perm json.RawMessage; var groups json.RawMessage; rows.Scan(&id,&name,&mk,&perm,&groups); var gids []string; _=json.Unmarshal(groups,&gids); if gids==nil{gids=[]string{}}; out=append(out, map[string]any{"id":id,"name":name,"mikrotik_group":mk,"menu_permissions":perm,"group_ids":gids})}
 	if out==nil{out=[]map[string]any{}}
 	jsonWrite(w,out)
 }
@@ -679,6 +715,68 @@ func handleCreateRole(w http.ResponseWriter, r *http.Request){
 		_, _ = db.Exec(r.Context(),"INSERT INTO role_device_groups(role_id,group_id) VALUES($1::uuid,$2::uuid) ON CONFLICT DO NOTHING", id, gid)
 	}
 	jsonWrite(w, map[string]any{"id":id})
+}
+
+func handleUpdateRole(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"users"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	var req struct{ Name *string `json:"name"`; MikrotikGroup *string `json:"mikrotik_group"`; Menu map[string]bool `json:"menu_permissions"`; GroupIDs []string `json:"group_ids"`}
+	if err:=readJSON(r,&req); err!=nil { jsonError(w,400,"bad json"); return }
+	if req.Name!=nil { _,_=db.Exec(r.Context(),"UPDATE roles SET name=$1 WHERE id=$2::uuid", *req.Name, id) }
+	if req.MikrotikGroup!=nil { _,_=db.Exec(r.Context(),"UPDATE roles SET mikrotik_group=$1 WHERE id=$2::uuid", *req.MikrotikGroup, id) }
+	if req.Menu!=nil { perm,_:=json.Marshal(req.Menu); _,_=db.Exec(r.Context(),"UPDATE roles SET menu_permissions=$1 WHERE id=$2::uuid", perm, id) }
+	if req.GroupIDs!=nil {
+		_,_=db.Exec(r.Context(),"DELETE FROM role_device_groups WHERE role_id=$1::uuid", id)
+		for _,gid:=range req.GroupIDs { _,_=db.Exec(r.Context(),"INSERT INTO role_device_groups(role_id,group_id) VALUES($1::uuid,$2::uuid) ON CONFLICT DO NOTHING", id, gid) }
+	}
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleDeleteRole(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"users"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	_,_=db.Exec(r.Context(),"DELETE FROM role_device_groups WHERE role_id=$1::uuid", id)
+	_,_=db.Exec(r.Context(),"DELETE FROM roles WHERE id=$1::uuid", id)
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleGetRoleGroups(w http.ResponseWriter, r *http.Request){
+	id:= chi.URLParam(r,"id")
+	rows,_:=db.Query(r.Context(),"SELECT group_id::text FROM role_device_groups WHERE role_id=$1::uuid", id)
+	var out []string
+	for rows!=nil&&rows.Next(){ var gid string; rows.Scan(&gid); out=append(out,gid) }
+	if rows!=nil{rows.Close()}
+	if out==nil{out=[]string{}}
+	jsonWrite(w, out)
+}
+func handleUpdateUser(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"users"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	var req struct{ Username *string `json:"username"`; Password *string `json:"password"`; Role *string `json:"role"`}
+	if err:=readJSON(r,&req); err!=nil { jsonError(w,400,"bad json"); return }
+	if req.Username!=nil { _,_=db.Exec(r.Context(),"UPDATE users SET username=$1 WHERE id=$2::uuid", *req.Username, id) }
+	if req.Password!=nil && *req.Password!="" { hash,_:=bcrypt.GenerateFromPassword([]byte(*req.Password),10); _,_=db.Exec(r.Context(),"UPDATE users SET password_hash=$1 WHERE id=$2::uuid", string(hash), id) }
+	if req.Role!=nil {
+		if *req.Role=="" { _,_=db.Exec(r.Context(),"UPDATE users SET role_id=NULL WHERE id=$1::uuid", id) } else {
+			var rid sql.NullString; _=db.QueryRow(r.Context(),"SELECT id::text FROM roles WHERE name=$1", *req.Role).Scan(&rid)
+			if rid.Valid { _,_=db.Exec(r.Context(),"UPDATE users SET role_id=$1::uuid WHERE id=$2::uuid", rid.String, id) }
+		}
+	}
+	// TODO: sync to MikroTik User Manager REST /user-manager/user — stub log
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleDeleteUser(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"users"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	// prevent deleting self? allow but warn — keep simple
+	_,_=db.Exec(r.Context(),"DELETE FROM users WHERE id=$1::uuid", id)
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleListRoleGroupsDetail(w http.ResponseWriter, r *http.Request){
+	rows,_:=db.Query(r.Context(),`SELECT r.id::text, r.name, COALESCE(json_agg(g.name) FILTER (WHERE g.id IS NOT NULL),'[]') FROM roles r LEFT JOIN role_device_groups rg ON rg.role_id=r.id LEFT JOIN device_groups g ON g.id=rg.group_id GROUP BY r.id ORDER BY r.name`)
+	var out []map[string]any
+	for rows!=nil&&rows.Next(){ var id,name string; var j json.RawMessage; rows.Scan(&id,&name,&j); out=append(out, map[string]any{"id":id,"name":name,"groups":j}) }
+	if rows!=nil{rows.Close()}
+	if out==nil{out=[]map[string]any{}}
+	jsonWrite(w,out)
 }
 
 func handleDeviceMetrics(w http.ResponseWriter, r *http.Request){
@@ -711,54 +809,122 @@ func deviceByID(ctx context.Context, id string) (map[string]any, error){
 	if err!=nil { return nil, err }
 	return map[string]any{"id":id,"name":name,"ip":ip,"type":typ}, nil
 }
+func deviceCreds(ctx context.Context, id string) (ip, sshUser, sshPass string, sshPort int, apiUser, apiPass string, telnetPort int){
+	var ipN, suN, spN, auN, apN sql.NullString
+	var spI, tpI sql.NullInt32
+	_ = db.QueryRow(ctx, `SELECT ip, ssh_user, ssh_pass, ssh_port, api_user, api_pass, telnet_port FROM devices WHERE id=$1`, id).Scan(&ipN,&suN,&spN,&spI,&auN,&apN,&tpI)
+	ip = ipN.String; sshUser = suN.String; sshPass = spN.String; apiUser = auN.String; apiPass = apN.String
+	sshPort = 22; if spI.Valid && spI.Int32>0 { sshPort = int(spI.Int32) }
+	telnetPort = 23; if tpI.Valid && tpI.Int32>0 { telnetPort = int(tpI.Int32) }
+	if sshUser=="" { sshUser = envOr("MIKROTIK_USER","admin") }
+	if sshPass=="" { sshPass = envOr("MIKROTIK_PASS","") }
+	if apiUser=="" { apiUser = envOr("MIKROTIK_USER","admin") }
+	if apiPass=="" { apiPass = envOr("MIKROTIK_PASS","") }
+	return
+}
 
 func handleBastionSSH(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
-	if r.Header.Get("Upgrade")=="" {
-		jsonWrite(w, map[string]any{"ok":true,"hint":"Use WebSocket to this endpoint with ?device_id=ID. SSH via bastion requires device credentials."})
+	if !websocket.IsWebSocketUpgrade(r) {
+		jsonWrite(w, map[string]any{"ok":true,"hint":"Use WebSocket: /api/bastion/ssh?device_id=ID&token=JWT — bastion dials SSH server-side"})
 		return
 	}
-	hj, ok := w.(http.Hijacker)
-	if !ok { jsonError(w,500,"hijack not supported"); return }
-	conn, bw, err := hj.Hijack()
+	ws, err := wsUpgrader.Upgrade(w,r,nil)
 	if err!=nil { return }
-	defer conn.Close()
-	bw.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: stub\r\n\r\n")
-	bw.Flush()
-	io.WriteString(conn, "\r\n[NMS Bastion SSH] device_id="+r.URL.Query().Get("device_id")+" — SSH bridge pending x/crypto/ssh (v0.6).\r\nUse: ssh admin@<device_ip> via credential or Web Console.\r\n")
-	buf := make([]byte, 4096)
-	for {
-		n, err := conn.Read(buf)
-		if err!=nil { return }
-		conn.Write(buf[:n])
-	}
+	defer ws.Close()
+	did := r.URL.Query().Get("device_id")
+	if did=="" { ws.WriteMessage(websocket.TextMessage, []byte("\r\n[ssh] missing device_id\r\n")); return }
+	ip, sshUser, sshPass, sshPort, _, _, _ := deviceCreds(r.Context(), did)
+	if ip=="" { ws.WriteMessage(websocket.TextMessage, []byte("\r\n[ssh] device not found\r\n")); return }
+	// dial ssh
+	cfg := &ssh.ClientConfig{User: sshUser, Auth: []ssh.AuthMethod{ssh.Password(sshPass)}, HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 8*time.Second}
+	addr := net.JoinHostPort(ip, fmt.Sprintf("%d", sshPort))
+	ws.WriteMessage(websocket.TextMessage, []byte("\r\n[ssh] connecting to "+addr+" as "+sshUser+" ...\r\n"))
+	client, err := ssh.Dial("tcp", addr, cfg)
+	if err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("[ssh] dial failed: "+err.Error()+"\r\n")); return }
+	defer client.Close()
+	sess, err := client.NewSession()
+	if err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("[ssh] session failed: "+err.Error()+"\r\n")); return }
+	defer sess.Close()
+	modes := ssh.TerminalModes{ssh.ECHO: 1, ssh.TTY_OP_ISPEED: 14400, ssh.TTY_OP_OSPEED: 14400}
+	if err:= sess.RequestPty("xterm-256color", 32, 120, modes); err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("[ssh] pty failed: "+err.Error()+"\r\n")); return }
+	stdin, _ := sess.StdinPipe()
+	stdout, _ := sess.StdoutPipe()
+	stderr, _ := sess.StderrPipe()
+	if err:= sess.Shell(); err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("[ssh] shell failed: "+err.Error()+"\r\n")); return }
+	ws.WriteMessage(websocket.TextMessage, []byte("\r\n[ssh] connected — type commands, Ctrl+D to exit\r\n"))
+	// ws -> stdin
+	go func(){
+		for {
+			mt, msg, err := ws.ReadMessage()
+			if err!=nil { sess.Close(); return }
+			if mt==websocket.TextMessage && len(msg)>0 && msg[0]=='{' {
+				var ctrl map[string]any
+				if err:= json.Unmarshal(msg, &ctrl); err==nil {
+					if ctrl["type"]=="resize" {
+						if c,ok:=ctrl["cols"].(float64); ok { if r,ok2:=ctrl["rows"].(float64); ok2 { _=sess.WindowChange(int(r), int(c)) }; continue }
+					}
+				}
+			}
+			if _,err:= stdin.Write(msg); err!=nil { return }
+			if len(msg)==1 && msg[0]==4 { sess.Close(); return }
+		}
+	}()
+	// stdout -> ws
+	go func(){
+		buf:= make([]byte, 4096)
+		for {
+			n,err:= stdout.Read(buf)
+			if err!=nil { return }
+			if n>0 { ws.WriteMessage(websocket.TextMessage, buf[:n]) }
+		}
+	}()
+	go func(){
+		buf:= make([]byte, 4096)
+		for {
+			n,err:= stderr.Read(buf)
+			if err!=nil { return }
+			if n>0 { ws.WriteMessage(websocket.TextMessage, buf[:n]) }
+		}
+	}()
+	sess.Wait()
+	ws.WriteMessage(websocket.TextMessage, []byte("\r\n[ssh] session closed\r\n"))
 }
 
 func handleBastionTelnet(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
-	if r.Header.Get("Upgrade")=="" {
-		jsonWrite(w, map[string]any{"ok":true,"hint":"WebSocket to /api/bastion/telnet?device_id=ID"})
+	if !websocket.IsWebSocketUpgrade(r) {
+		jsonWrite(w, map[string]any{"ok":true,"hint":"WebSocket: /api/bastion/telnet?device_id=ID&token=JWT"})
 		return
 	}
-	hj, ok := w.(http.Hijacker)
-	if !ok { jsonError(w,500,"hijack not supported"); return }
-	conn, bw, err := hj.Hijack()
+	ws, err := wsUpgrader.Upgrade(w,r,nil)
 	if err!=nil { return }
-	defer conn.Close()
-	bw.WriteString("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: stub\r\n\r\n")
-	bw.Flush()
+	defer ws.Close()
 	did := r.URL.Query().Get("device_id")
-	var ip string
-	_ = db.QueryRow(r.Context(), `SELECT ip FROM devices WHERE id=$1`, did).Scan(&ip)
-	if ip=="" { ip="127.0.0.1" }
-	remote, err := net.DialTimeout("tcp", net.JoinHostPort(ip,"23"), 5*time.Second)
-	if err!=nil {
-		io.WriteString(conn, "[bastion] telnet dial failed: "+err.Error()+"\r\n")
-		return
-	}
+	if did=="" { ws.WriteMessage(websocket.TextMessage, []byte("missing device_id\r\n")); return }
+	ip, _, _, _, _, _, telPort := deviceCreds(r.Context(), did)
+	if ip=="" { var tmp string; _=db.QueryRow(r.Context(), `SELECT ip FROM devices WHERE id=$1`, did).Scan(&tmp); ip=tmp }
+	if ip=="" { ws.WriteMessage(websocket.TextMessage, []byte("device not found\r\n")); return }
+	addr := net.JoinHostPort(ip, fmt.Sprintf("%d", telPort))
+	ws.WriteMessage(websocket.TextMessage, []byte("[telnet] connecting to "+addr+" ...\r\n"))
+	remote, err := net.DialTimeout("tcp", addr, 6*time.Second)
+	if err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("[telnet] dial failed: "+err.Error()+"\r\n")); return }
 	defer remote.Close()
-	go io.Copy(remote, conn)
-	io.Copy(conn, remote)
+	ws.WriteMessage(websocket.TextMessage, []byte("[telnet] connected\r\n"))
+	go func(){
+		for {
+			_,msg,err:= ws.ReadMessage()
+			if err!=nil { remote.Close(); return }
+			remote.Write(msg)
+			if len(msg)==1 && msg[0]==4 { return }
+		}
+	}()
+	buf:=make([]byte, 4096)
+	for {
+		n,err:= remote.Read(buf)
+		if err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("\r\n[telnet] closed\r\n")); return }
+		if n>0 { ws.WriteMessage(websocket.TextMessage, buf[:n]) }
+	}
 }
 
 func handleMikrotikAPI(w http.ResponseWriter, r *http.Request){
@@ -768,8 +934,10 @@ func handleMikrotikAPI(w http.ResponseWriter, r *http.Request){
 	if path=="" { path="/rest/interface" }
 	var ip string
 	if err:= db.QueryRow(r.Context(), `SELECT ip FROM devices WHERE id=$1`, did).Scan(&ip); err!=nil { jsonError(w,404,"device not found"); return }
-	user := envOr("MIKROTIK_USER","admin")
-	pass := envOr("MIKROTIK_PASS","")
+	_, _, _, _, apiUser, apiPass, _ := deviceCreds(r.Context(), did)
+	if apiUser=="" { apiUser = envOr("MIKROTIK_USER","admin") }
+	if apiPass=="" { apiPass = envOr("MIKROTIK_PASS","") }
+	user, pass := apiUser, apiPass
 	target := fmt.Sprintf("http://%s%s", ip, path)
 	req, _ := http.NewRequest(r.Method, target, r.Body)
 	req.SetBasicAuth(user, pass)
@@ -802,8 +970,10 @@ func handleWebfigProxy(w http.ResponseWriter, r *http.Request){
 		if len(q)>0 { target += "?"+q.Encode() }
 	}
 	req, _ := http.NewRequest("GET", target, nil)
-	if u := envOr("MIKROTIK_USER",""); u!="" {
-		req.SetBasicAuth(u, envOr("MIKROTIK_PASS",""))
+	{
+		_, _, _, _, apiUser, apiPass, _ := deviceCreds(r.Context(), did)
+		if apiUser=="" { apiUser = envOr("MIKROTIK_USER","") }
+		if apiUser!="" { req.SetBasicAuth(apiUser, apiPass) }
 	}
 	for k,v := range r.Header { if k=="Authorization" || k=="Cookie" { req.Header[k]=v } }
 	client := &http.Client{Timeout: 15*time.Second}

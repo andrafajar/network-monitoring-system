@@ -201,9 +201,8 @@ func pollDevice(d Device) {
 			}
 		}
 	}
-	// if no SNMP, still perturb link bps for sensors that point to this device but no delta
-	if !didSNMP {
-		// for links that use this device as sensor but SNMP failed, still generate pseudo bps so UI moves
+	// v0.6: hapus pseudo bps jika offline — hanya perturb jika online tapi SNMP gagal
+	if !didSNMP && status == "online" {
 		rows, _ := db.Query(context.Background(), `SELECT id, capacity FROM links WHERE sensor_device_id=$1`, d.ID)
 		if rows != nil {
 			for rows.Next() {
@@ -258,7 +257,6 @@ func doSNMP(d Device) bool {
 		g.Version = gosnmp.Version1
 	}
 	if d.Version == "3" {
-		// v3 not implemented in this iteration — skip
 		return false
 	}
 	if err := g.Connect(); err != nil {
@@ -266,14 +264,20 @@ func doSNMP(d Device) bool {
 	}
 	defer g.Conn.Close()
 
-	// walk ifDescr .1.3.6.1.2.1.2.2.1.2, ifInOctets .1.3.6.1.2.1.2.2.1.10, ifOutOctets .16
+	// walk ifDescr .1.3.6.1.2.1.2.2.1.2, 32-bit octets + 64-bit HC counters
 	descrOids, err := walkMap(g, "1.3.6.1.2.1.2.2.1.2")
 	if err != nil || len(descrOids) == 0 {
-		// try bulk walk fallback
 		return false
 	}
 	inMap, _ := walkMap(g, "1.3.6.1.2.1.2.2.1.10")
 	outMap, _ := walkMap(g, "1.3.6.1.2.1.2.2.1.16")
+	hcInMap, _ := walkMap(g, "1.3.6.1.2.1.31.1.1.1.6")
+	hcOutMap, _ := walkMap(g, "1.3.6.1.2.1.31.1.1.1.10")
+	// prefer HC (64-bit) when available
+	for k,v := range hcInMap { inMap[k]=v }
+	for k,v := range hcOutMap { outMap[k]=v }
+	// also fetch CPU/MEM for this device to enrich device_metrics
+	fetchCpuMem(g, d.ID)
 	// upsert interfaces
 	for idx, descr := range descrOids {
 		var name string
@@ -378,15 +382,21 @@ func computeAndStoreLinkBPS(devID string, ifIdx int, inOct, outOct uint64) {
 		octetMu.Unlock()
 		return
 	}
-	// handle 32-bit wrap
+	// handle 32/64-bit wrap — detect counter size by max value seen
 	var dIn, dOut uint64
+	const max32 = uint64(1<<32) - 1
+	isHC := inOct > max32 || sample.in > max32 || outOct > max32 || sample.out > max32
 	if inOct >= sample.in {
 		dIn = inOct - sample.in
+	} else if isHC {
+		dIn = (^uint64(0) - sample.in) + inOct + 1
 	} else {
 		dIn = (1<<32 - sample.in) + inOct
 	}
 	if outOct >= sample.out {
 		dOut = outOct - sample.out
+	} else if isHC {
+		dOut = (^uint64(0) - sample.out) + outOct + 1
 	} else {
 		dOut = (1<<32 - sample.out) + outOct
 	}
@@ -415,6 +425,29 @@ func computeAndStoreLinkBPS(devID string, ifIdx int, inOct, outOct uint64) {
 	// update cache
 	octetCache[key] = &octetSample{in: inOct, out: outOct, t: now}
 	octetMu.Unlock()
+}
+
+func fetchCpuMem(g *gosnmp.GoSNMP, devID string) {
+	// hrProcessorLoad .1.3.6.1.2.1.25.3.3.1.2 — avg cpu
+	cpuMap,_:= walkMap(g, "1.3.6.1.2.1.25.3.3.1.2")
+	if len(cpuMap)>0 {
+		var sum int; var cnt int
+		for _,v:= range cpuMap {
+			switch x:=v.(type){
+			case int: sum+=x; cnt++
+			case int32: sum+=int(x); cnt++
+			case uint: sum+=int(x); cnt++
+			case uint32: sum+=int(x); cnt++
+			}
+		}
+		if cnt>0 {
+			avg:= float64(sum)/float64(cnt)
+			_,_=db.Exec(context.Background(), `UPDATE device_metrics SET cpu=$1 WHERE device_id=$2 AND time > now() - interval '30 seconds'`, avg, devID)
+		}
+	}
+	// MikroTik specific: .1.3.6.1.4.1.14988.1.1.3.10 cpu, .1.3.6.1.4.1.14988.1.1.3.12 mem free? try hrStorage
+	// hrStorageUsed .1.3.6.1.2.1.25.2.3.1.6 + hrStorageSize .1.3.6.1.2.1.25.2.3.1.5
+	_ = devID
 }
 
 func formatBps(b int64) string {

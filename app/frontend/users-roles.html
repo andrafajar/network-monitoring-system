@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NMS — Users & Roles</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--sidebar-bg:#0A2463;--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--ink:#0F172A;--muted:#64748B}
+[data-sidebar="navy"]{--sidebar-bg:#0A2463}
+[data-sidebar="green"]{--sidebar-bg:#064E3B}
+[data-sidebar="purple"]{--sidebar-bg:#4C1D95}
+[data-sidebar="slate"]{--sidebar-bg:#1E293B}
+[data-sidebar="crimson"]{--sidebar-bg:#7F1D1D}
+[data-sidebar="teal"]{--sidebar-bg:#134E4A}
+[data-theme="dark"]{--bg:#020617;--card:#1E293B;--line:#334155;--ink:#F1F5F9;--muted:#94A3B8}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);display:flex;min-height:100vh;transition:background .2s,color .2s}
+.sidebar{width:260px;background:var(--sidebar-bg);color:#CBD5E1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto;transition:width .22s;flex-shrink:0}
+.sidebar.minimized{width:72px}
+.sidebar.minimized .hide-mini{display:none!important}
+.sidebar.minimized .logo{padding:12px 6px;gap:6px}
+.sidebar.minimized .menu a{justify-content:center;padding:10px 8px}
+.sidebar.minimized .menu a .lbl{display:none}
+.logo{padding:14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.logo .ic{width:36px;height:36px;min-width:36px;border-radius:10px;background:#fff;color:#0A2463;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;letter-spacing:-.02em;box-shadow:0 1px 2px rgba(0,0,0,.08), 0 0 0 1px rgba(255,255,255,.12) inset}
+.logo .ic svg{width:20px;height:20px}
+.sidebar.minimized .logo .ic{width:32px;height:32px;min-width:32px;border-radius:8px;font-size:.95rem}
+.logo b{color:#fff;font-size:.95rem;line-height:1.1;display:block}
+.logo small{color:#94A3B8;font-size:.68rem}
+#sideToggle{width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:18px;line-height:1;transition:background .15s}
+#sideToggle:hover{background:rgba(255,255,255,.16)}
+.sidebar.minimized #sideToggle{margin-left:4px}
+.menu{padding:10px 8px 8px;flex:1}
+.menu .grp{font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94A3B8;padding:14px 10px 6px}
+.menu a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:#CBD5E1;text-decoration:none;font-size:.85rem;font-weight:600}
+.menu a.on{background:rgba(255,255,255,.12);color:#fff}
+.menu a:hover{background:rgba(255,255,255,.07)}
+.theme-panel{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08);margin-top:auto}
+.theme-panel .tl{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94A3B8}
+.dots{display:flex;gap:6px;margin:8px 0 10px;flex-wrap:wrap}
+.dots button{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;outline:none}
+.dots button.active{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.dark-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border-radius:999px;padding:7px 10px;font-size:.75rem;font-weight:600;cursor:pointer;user-select:none}
+.dark-row:hover{background:rgba(255,255,255,.12)}
+.switch{position:relative;width:38px;height:22px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:rgba(255,255,255,.25);border-radius:999px;transition:.2s}
+.slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.switch input:checked + .slider{background:#2563EB}
+.switch input:checked + .slider:before{transform:translateX(16px)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+.topbar h2{font-size:1.05rem;font-weight:800}
+.topbar .sp{flex:1}
+.topbar .pill{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.78rem;color:var(--muted)}
+.btn{background:#0A2463;color:#fff;border:0;border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:.82rem;display:inline-flex;align-items:center;gap:6px}
+.btn.ghost{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+.btn.sm{padding:6px 10px;font-size:.76rem;border-radius:8px}
+.customize-btn{background:#fff;border:1.5px solid #E2E8F0;color:#0F172A}
+[data-theme="dark"] .customize-btn{background:var(--card);border-color:var(--line);color:var(--ink)}
+.customize-btn.active{background:#0A2463;color:#fff;border-color:#0A2463}
+#topMinBtn{display:none}
+@media(max-width:1000px){#topMinBtn{display:inline-flex}.sidebar{position:fixed;left:0;top:0;z-index:50;transform:translateX(0)}.sidebar.minimized{transform:translateX(-100%)}}
+.content{padding:16px 14px 30px;max-width:1400px;margin:0 auto;width:100%}
+.grid-stack{margin:0 -6px}
+.grid-stack-item-content{inset:6px!important;overflow:visible!important;background:transparent!important;border:0!important}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.kpi{grid-template-columns:repeat(2,1fr)}}
+.kpi .c{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.kpi b{font-size:1.5rem;display:block}
+.kpi span{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.kpi .on{color:#059669}.kpi .off{color:#DC2626}.kpi .warn{color:#D97706}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.04);height:100%;display:flex;flex-direction:column;overflow:hidden}
+.card h3{font-size:.88rem;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.mut{color:var(--muted);font-size:.82rem}
+select,input,textarea{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:.85rem;width:100%;background:var(--card);color:var(--ink)}
+.table{width:100%;border-collapse:collapse;font-size:.85rem}
+.table th{text-align:left;color:var(--muted);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;padding:10px 8px;border-bottom:1px solid var(--line)}
+.table td{padding:10px 8px;border-bottom:1px solid var(--line)}
+.badge{font-size:.68rem;font-weight:800;border-radius:999px;padding:3px 8px}
+.badge.ok{background:#D1FAE5;color:#065F46}.badge.bad{background:#FEE2E2;color:#991B1B}.badge.mid{background:#FEF3C7;color:#92400E}
+.chip{display:inline-block;background:#EFF6FF;color:#1E40AF;border-radius:999px;padding:4px 8px;font-size:.72rem;font-weight:700;margin:2px}
+[data-theme="dark"] .chip{background:#1E3A8A;color:#BFDBFE}
+[data-theme="dark"] .badge.ok{background:#064E3B;color:#6EE7B7}
+[data-theme="dark"] .badge.bad{background:#7F1D1D;color:#FECACA}
+.widget-bar{position:absolute;top:8px;right:8px;background:#0F172A;color:#fff;border-radius:999px;padding:4px 6px;gap:4px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:5;display:none}
+body.customizing .widget-bar{display:flex}
+.widget-bar .drag{cursor:grab;padding:5px 6px;border-radius:999px;background:rgba(255,255,255,.14);font-size:.7rem;line-height:1;user-select:none}
+.widget-bar .drag:active{cursor:grabbing}
+.widget-bar .w-title{font-size:.68rem;font-weight:700;opacity:.85;margin:0 2px}
+.size-group{display:flex;gap:2px;background:rgba(255,255,255,.1);border-radius:999px;padding:2px}
+.size-group button{border:0;background:transparent;color:#fff;font-size:.65rem;font-weight:700;padding:3px 6px;border-radius:999px;cursor:pointer}
+.size-group button.on{background:#fff;color:#0F172A}
+.widget-bar .hide-btn{border:0;background:rgba(255,255,255,.14);color:#fff;border-radius:999px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.7rem}
+body.customizing .grid-stack-item{outline:1px dashed rgba(148,163,184,.6);outline-offset:-6px;border-radius:18px}
+body.customizing .grid-stack-item:hover{outline-color:#2563EB}
+.grid-stack-placeholder .placeholder-content{border:2px dashed #2563EB!important;background:rgba(37,99,235,.08)!important;border-radius:16px!important}
+.banner-custom{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;border-radius:12px;padding:10px 12px;font-size:.78rem;display:none;margin-bottom:12px;align-items:center;gap:8px}
+body.customizing .banner-custom{display:flex}
+[data-theme="dark"] .banner-custom{background:#1E3A8A;border-color:#334155;color:#BFDBFE}
+.custom-overlay{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:60;display:none}
+.custom-overlay.open{display:block}
+.custom-drawer{position:fixed;top:0;right:0;width:380px;max-width:92vw;height:100vh;background:var(--card);border-left:1px solid var(--line);z-index:61;transform:translateX(100%);transition:transform .22s;overflow:auto;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
+.custom-drawer.open{transform:translateX(0)}
+.drawer-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--card);z-index:2}
+.drawer-head b{font-size:.92rem;font-weight:800}
+.drawer-body{padding:14px 14px 20px;flex:1}
+.drawer-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:8px;position:sticky;bottom:0;background:var(--card)}
+.widget-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--bg)}
+.widget-item .wi-icon{width:30px;height:30px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.widget-item .wi-main{flex:1;min-width:0}
+.widget-item .wi-main b{display:block;font-size:.82rem;line-height:1.1}
+.widget-item .wi-main small{color:var(--muted);font-size:.7rem}
+.eye{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:.85rem}
+.eye.on{background:#D1FAE5;border-color:#A7F3D0;color:#065F46}
+.size-mini{display:flex;gap:4px;margin-top:6px}
+.size-mini button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 6px;font-size:.66rem;font-weight:700;cursor:pointer;color:var(--muted)}
+.size-mini button.on{background:#0A2463;color:#fff;border-color:#0A2463}
+.add-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.add-card{border:1.5px dashed var(--line);border-radius:12px;padding:10px;background:var(--card);cursor:pointer;text-align:center;transition:border-color .15s,background .15s}
+.add-card:hover{border-color:#2563EB;background:var(--bg)}
+.add-card b{display:block;font-size:.78rem;margin-top:4px}
+.add-card small{font-size:.68rem;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:16px;max-width:520px;width:100%;padding:16px;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+.modal-box h3{font-size:.95rem;font-weight:800;margin-bottom:8px}
+.modal-box label{font-size:.78rem;font-weight:600;margin-top:8px;display:block}
+</style>
+
+<style>
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{width:100%;border-collapse:collapse;font-size:.84rem}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+td .chip{font-size:.72rem}
+.badge-role{padding:3px 8px;border-radius:999px;font-size:.7rem;font-weight:700;border:1px solid var(--line);background:var(--bg)}
+.badge-mk{padding:3px 8px;border-radius:999px;font-size:.7rem;font-weight:700}
+.badge-mk.read{background:#EFF6FF;color:#2563EB;border:1px solid #BFDBFE}
+.badge-mk.write{background:#FEF3C7;color:#92400E;border:1px solid #FDE68A}
+.badge-mk.full{background:#DCFCE7;color:#065F46;border:1px solid #86EFAC}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.check-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.check-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:.78rem;font-weight:600}
+.check-item input{accent-color:#2563EB}
+.group-list{display:flex;flex-wrap:wrap;gap:4px}
+.group-pill{padding:2px 7px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:.68rem}
+.empty{padding:18px;text-align:center;color:var(--muted);font-size:.84rem}
+#toast{position:fixed;right:12px;bottom:12px;background:#0A2463;color:#fff;padding:10px 14px;border-radius:10px;font-size:.82rem;box-shadow:0 10px 30px rgba(0,0,0,.2);display:none;z-index:90;max-width:360px}
+</style>
+
+</head>
+<body data-sidebar="navy">
+<div class="sidebar" id="sidebar">
+  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Multi-Device • v0.5</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
+  <nav class="menu">
+    <div class="grp hide-mini">Monitoring</div>
+    <a href="dashboard.html">📊 <span class="lbl">Dashboard</span></a>
+    <a href="devices.html">🖥️ <span class="lbl">Devices</span></a>
+    <a href="topology.html">🗺️ <span class="lbl">Topology</span></a>
+    <div class="grp hide-mini">Management</div>
+    <a href="devices.html">💻 <span class="lbl">Remote</span></a>
+    <a class="on" href="users-roles.html">👥 <span class="lbl">Users & Roles</span></a>
+    <a href="#" onclick="alert('Alerts — P1 next');return false">🔔 <span class="lbl">Alerts</span></a>
+    <div class="grp hide-mini">System</div>
+    <a href="index.html" onclick="localStorage.clear()">🚪 <span class="lbl">Logout</span></a>
+  </nav>
+  <div class="theme-panel">
+    <div class="tl hide-mini">Warna Sidebar</div>
+    <div class="dots">
+      <button data-theme="navy" style="background:#0A2463" title="Navy"></button>
+      <button data-theme="green" style="background:#059669" title="Green"></button>
+      <button data-theme="purple" style="background:#7C3AED" title="Purple"></button>
+      <button data-theme="slate" style="background:#334155" title="Slate"></button>
+      <button data-theme="crimson" style="background:#DC2626" title="Crimson"></button>
+      <button data-theme="teal" style="background:#0F766E" title="Teal"></button>
+    </div>
+    <label class="dark-row hide-mini"><span style="display:flex;align-items:center;gap:6px"><span id="darkIcon">🌙</span> Dark mode</span><span class="switch"><input type="checkbox" id="darkToggle"><span class="slider"></span></span></label>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sbOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40"></div>
+<div class="main">
+  <div class="topbar">
+    <button class="btn ghost" id="topMinBtn" style="padding:6px 10px" title="Toggle sidebar">☰</button>
+    <h2>Users & Roles</h2>
+    <span class="sp" style="flex:1"></span>
+    <span class="pill" id="clock">—</span>
+    <span class="pill hide-mini" style="display:inline-flex">RBAC 3 dimensi</span>
+  </div>
+  <div class="content" style="padding:14px;max-width:1200px;margin:0 auto;width:100%">
+    <div style="display:grid;grid-template-columns:1fr;gap:14px">
+      <!-- Roles -->
+      <div class="card" style="padding:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <h3 style="font-size:.92rem;font-weight:800;display:flex;align-items:center;gap:8px">👥 Roles <span class="mut" style="font-weight:500;font-size:.72rem">menu + device-group + Mikrotik-Group (RADIUS)</span></h3>
+          <span style="flex:1"></span>
+          <button class="btn sm" onclick="openRoleModal()">+ Role</button>
+          <button class="btn ghost sm" onclick="loadAll()">↻ Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Role</th><th>Mikrotik-Group</th><th>Menus</th><th>Device Groups</th><th>Aksi</th></tr></thead>
+            <tbody id="roleTable"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <p class="mut" style="font-size:.72rem;margin-top:8px">Role menghubungkan <b>menu_permissions</b> (dashboard/devices/topology/users) + <b>role_device_groups</b> (group_id) + <b>mikrotik_group</b> (read/write/full sync ke User Manager). App deny meski device allow.</p>
+      </div>
+
+      <!-- Users -->
+      <div class="card" style="padding:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <h3 style="font-size:.92rem;font-weight:800">👤 Users <span class="mut" style="font-weight:500;font-size:.72rem">1 user → 1 role → RADIUS Mikrotik-Group</span></h3>
+          <span style="flex:1"></span>
+          <button class="btn sm" onclick="openUserModal()">+ User</button>
+          <button class="btn ghost sm" onclick="loadUsers()">↻ Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Username</th><th>Role</th><th>Must change</th><th>Aksi</th></tr></thead>
+            <tbody id="userTable"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <p class="mut" style="font-size:.72rem;margin-top:8px">Create/Update user → sync AAA ke <b>POST /rest/user-manager/user</b> (stub log di API). Fallback DB auth jika UM unreachable. Jangan commit plaintext password.</p>
+      </div>
+
+      <div class="card" style="padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="mut" style="font-size:.76rem">Koneksi RADIUS: MEMBER router → <code style="background:var(--bg);padding:2px 6px;border-radius:6px;border:1px solid var(--line)">/radius add service=login address=UM secret=... + /user aaa set use-radius=yes</code> → Mikrotik-Group dari RADIUS.</span>
+        <span style="flex:1"></span>
+        <a href="dashboard.html" class="btn ghost sm">← Dashboard</a>
+        <a href="devices.html" class="btn ghost sm">Devices →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Role Modal -->
+<div class="modal" id="modalRole">
+  <div class="modal-box" style="max-width:620px">
+    <h3 id="roleModalTitle">+ Role</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label style="grid-column:1/-1">Name<input id="rName" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-top:4px"></label>
+      <label>Mikrotik-Group<select id="rMk" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-top:4px"><option value="read">read</option><option value="write">write</option><option value="full">full</option></select></label>
+      <label style="grid-column:1/-1">Menus
+        <div class="check-grid" id="rMenus" style="grid-template-columns:1fr 1fr 1fr">
+          <label class="check-item"><input type="checkbox" value="dashboard" checked> dashboard</label>
+          <label class="check-item"><input type="checkbox" value="devices" checked> devices</label>
+          <label class="check-item"><input type="checkbox" value="topology"> topology</label>
+          <label class="check-item"><input type="checkbox" value="users"> users</label>
+          <label class="check-item"><input type="checkbox" value="settings"> settings</label>
+        </div>
+        <span class="mut" style="font-size:.68rem">requireMenu key: dashboard/devices/topology/users</span>
+      </label>
+      <label style="grid-column:1/-1">Device Groups (role_device_groups)
+        <div id="rGroups" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;max-height:160px;overflow:auto;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--bg)"><span class="mut" style="font-size:.78rem">Loading groups…</span></div>
+        <span class="mut" style="font-size:.68rem">Kosong = all groups (SuperAdmin). Pilih 1+ untuk membatasi AllowedGroupIDs.</span>
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn ghost sm" onclick="closeModal('modalRole')">Batal</button><button class="btn sm" id="roleSaveBtn" onclick="saveRole()">Simpan</button></div>
+  </div>
+</div>
+
+<!-- User Modal -->
+<div class="modal" id="modalUser">
+  <div class="modal-box" style="max-width:480px">
+    <h3 id="userModalTitle">+ User</h3>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px">
+      <label>Username<input id="uName" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-top:4px"></label>
+      <label>Password<input id="uPass" type="password" placeholder="•••• (kosong = tidak ganti saat edit)" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-top:4px"></label>
+      <label>Role<select id="uRole" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-top:4px"><option value="">— no role —</option></select></label>
+      <span class="mut" style="font-size:.72rem">Role menentukan menus + groups + Mikrotik-Group. 1 user → 1 role (RADIUS 1:1).</span>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn ghost sm" onclick="closeModal('modalUser')">Batal</button><button class="btn sm" id="userSaveBtn" onclick="saveUser()">Simpan</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  const body=document.body, sb=document.getElementById('sidebar'), darkToggle=document.getElementById('darkToggle');
+  const dots=document.querySelectorAll('.dots button');
+  const sideToggle=document.getElementById('sideToggle'), topMinBtn=document.getElementById('topMinBtn');
+  function applyMini(m){ sb.classList.toggle('minimized',m); localStorage.setItem('nms_sidebar_mini',m?'1':'0'); if(sideToggle){ sideToggle.textContent=m?'›':'‹'; sideToggle.title=m?'Expand sidebar':'Minimize sidebar'; } const ov=document.getElementById('sbOverlay'); if(ov){ const isMobile=window.innerWidth<=1000; ov.style.display = (!m && isMobile) ? 'block' : 'none'; } }
+  const _rawMini=localStorage.getItem('nms_sidebar_mini');
+  const savedMini=_rawMini===null ? window.innerWidth<=1000 : _rawMini==='1';
+  const savedSidebar=localStorage.getItem('nms_sidebar_theme')||'navy';
+  const savedDark=localStorage.getItem('nms_dark')==='1';
+  applyMini(savedMini);
+  body.setAttribute('data-sidebar', savedSidebar);
+  dots.forEach(b=>{ if(b.dataset.theme===savedSidebar) b.classList.add('active')});
+  if(savedDark){ body.setAttribute('data-theme','dark'); if(darkToggle) darkToggle.checked=true; }
+  function syncDarkIcon(){ const ic=document.getElementById('darkIcon'); if(ic) ic.textContent = (document.body.getAttribute('data-theme')==='dark') ? '☀️' : '🌙'; }
+  function toggleMini(){ applyMini(!sb.classList.contains('minimized')); }
+  if(sideToggle) sideToggle.onclick=toggleMini;
+  if(topMinBtn) topMinBtn.onclick=toggleMini;
+  const ovEl=document.getElementById('sbOverlay'); if(ovEl) ovEl.onclick=toggleMini;
+  dots.forEach(b=>{ b.onclick=()=>{ const t=b.dataset.theme; body.setAttribute('data-sidebar',t); localStorage.setItem('nms_sidebar_theme',t); dots.forEach(x=>x.classList.remove('active')); b.classList.add('active'); }});
+  if(darkToggle){ darkToggle.onchange=()=>{ if(darkToggle.checked){ body.setAttribute('data-theme','dark'); localStorage.setItem('nms_dark','1'); } else { body.removeAttribute('data-theme'); localStorage.setItem('nms_dark','0'); } syncDarkIcon(); }; }
+  syncDarkIcon();
+})();
+function tick(){const el=document.getElementById('clock'); if(el) el.textContent=new Date().toLocaleString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+tick();setInterval(tick,1000);
+</script>
+<script>
+const API='';
+function tok(){ return localStorage.getItem('nms_token')||''; }
+function hdr(){ const h={'Content-Type':'application/json'}; const t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2600); }
+function needLogin(){
+  if(!tok()){
+    const sel=confirm('Token kosong — login dulu sebagai superadmin/Admin@123?\nOK = ke Login, Cancel = tetap preview (read-only)');
+    if(sel) location.href='index.html';
+    return true;
+  } return false;
+}
+async function jget(p){ const r=await fetch(API+p,{headers:hdr()}); if(!r.ok){ if(r.status===401) toast('401 — login dulu'); throw new Error(r.status+' '+await r.text().catch(()=>'')); } return r.json(); }
+async function jpost(p,b,method){ method=method||'POST'; const r=await fetch(API+p,{method, headers:hdr(), body:JSON.stringify(b)}); const txt=await r.text(); let j; try{j=JSON.parse(txt)}catch(e){j={raw:txt}}; if(!r.ok) throw new Error(j.error||txt||r.status); return j; }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal').forEach(m=> m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('open'); }));
+let GROUPS=[]; let ROLES=[]; let USERS=[]; let editRoleId=null; let editUserId=null;
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadGroups(){
+  try{
+    const arr=await jget('/api/device-groups');
+    GROUPS=Array.isArray(arr)?arr:[];
+    const box=document.getElementById('rGroups');
+    if(!GROUPS.length) box.innerHTML='<span class=mut>Belum ada group — buat di Devices → Groups</span>';
+    else box.innerHTML=GROUPS.map(g=>`<label class="check-item"><input type="checkbox" value="${esc(g.id)}"> ${esc(g.name)} <span class="mut" style="font-size:.68rem">${esc(g.description||'')}</span></label>`).join('');
+    return GROUPS;
+  }catch(e){ document.getElementById('rGroups').innerHTML='<span style="color:#DC2626;font-size:.78rem">Gagal load groups: '+esc(e.message)+'</span>'; }
+}
+async function loadRoles(){
+  try{
+    const arr=await jget('/api/roles');
+    ROLES=Array.isArray(arr)?arr:[];
+    // also fill user role select
+    const sel=document.getElementById('uRole');
+    const cur=sel.value;
+    sel.innerHTML='<option value="">— no role —</option>'+ROLES.map(r=>`<option value="${esc(r.name)}">${esc(r.name)} (${esc(r.mikrotik_group)})</option>`).join('');
+    if(cur) sel.value=cur;
+    renderRoles();
+  }catch(e){ document.getElementById('roleTable').innerHTML='<tr><td colspan="5" style="color:#DC2626">'+esc(e.message)+'</td></tr>'; }
+}
+function renderRoles(){
+  const tb=document.getElementById('roleTable');
+  if(!ROLES.length){ tb.innerHTML='<tr><td colspan="5" class="empty">Belum ada role — klik + Role</td></tr>'; return; }
+  tb.innerHTML=ROLES.map(r=>{
+    const menus = r.menu_permissions && typeof r.menu_permissions==='object' ? Object.keys(r.menu_permissions).filter(k=>r.menu_permissions[k]).join(', ') : '—';
+    const gids = Array.isArray(r.group_ids)? r.group_ids : [];
+    const groupNames = gids.length ? gids.map(id=>{ const g=GROUPS.find(x=>x.id===id); return g?g.name:id.slice(0,8); }).join(', ') : '<span class="mut">all</span>';
+    const mk = esc(r.mikrotik_group||'read');
+    const mkClass = mk==='read'?'read': mk==='write'?'write':'full';
+    return `<tr><td><b>${esc(r.name)}</b></td><td><span class="badge-mk ${mkClass}">${mk}</span></td><td><span class="mut" style="font-size:.74rem">${esc(menus)}</span></td><td><span style="font-size:.74rem">${groupNames}</span></td><td class="actions"><button class="btn ghost sm" onclick="editRole('${esc(r.id)}')">Edit</button><button class="btn ghost sm" style="color:#DC2626" onclick="delRole('${esc(r.id)}','${esc(r.name)}')">Hapus</button></td></tr>`;
+  }).join('');
+}
+async function loadUsers(){
+  try{
+    const arr=await jget('/api/users');
+    USERS=Array.isArray(arr)?arr:[];
+    const tb=document.getElementById('userTable');
+    if(!USERS.length){ tb.innerHTML='<tr><td colspan="4" class="empty">Belum ada user</td></tr>'; return; }
+    tb.innerHTML=USERS.map(u=>{
+      const must = u.must_change_password ? '<span style="color:#D97706;font-weight:700">yes</span>' : '<span class="mut">no</span>';
+      return `<tr><td><b>${esc(u.username)}</b><div class="mut" style="font-size:.68rem">${esc(u.id||'')}</div></td><td><span class="badge-role">${esc(u.role||'—')}</span></td><td>${must}</td><td class="actions"><button class="btn ghost sm" onclick="editUser('${esc(u.id)}')">Edit</button><button class="btn ghost sm" style="color:#DC2626" onclick="delUser('${esc(u.id)}','${esc(u.username)}')">Hapus</button></td></tr>`;
+    }).join('');
+  }catch(e){ document.getElementById('userTable').innerHTML='<tr><td colspan="4" style="color:#DC2626">'+esc(e.message)+'</td></tr>'; }
+}
+async function loadAll(){
+  await loadGroups();
+  await loadRoles();
+  await loadUsers();
+}
+
+// Role modal
+function openRoleModal(id){
+  editRoleId = id||null;
+  document.getElementById('roleModalTitle').textContent = id ? 'Edit Role' : '+ Role';
+  const r = id ? ROLES.find(x=>x.id===id) : null;
+  document.getElementById('rName').value = r ? r.name : '';
+  document.getElementById('rMk').value = r ? (r.mikrotik_group||'read') : 'read';
+  // menus
+  const perms = r && r.menu_permissions || {};
+  document.querySelectorAll('#rMenus input').forEach(cb=>{ cb.checked = !!perms[cb.value]; });
+  // groups
+  document.querySelectorAll('#rGroups input').forEach(cb=>{ cb.checked = r && Array.isArray(r.group_ids) ? r.group_ids.includes(cb.value) : false; });
+  document.getElementById('modalRole').classList.add('open');
+}
+function editRole(id){ openRoleModal(id); }
+async function saveRole(){
+  if(needLogin()) return;
+  const name=document.getElementById('rName').value.trim();
+  if(!name){ toast('Name required'); return; }
+  const mk=document.getElementById('rMk').value;
+  const menu={}; document.querySelectorAll('#rMenus input').forEach(cb=>{ if(cb.checked) menu[cb.value]=true; else menu[cb.value]=false; });
+  const gids=[]; document.querySelectorAll('#rGroups input:checked').forEach(cb=> gids.push(cb.value));
+  const body={name, mikrotik_group: mk, menu_permissions: menu, group_ids: gids};
+  const btn=document.getElementById('roleSaveBtn'); btn.disabled=true; btn.textContent='Menyimpan…';
+  try{
+    if(editRoleId) await jpost('/api/roles/'+encodeURIComponent(editRoleId), body, 'PUT');
+    else await jpost('/api/roles', body, 'POST');
+    closeModal('modalRole');
+    toast(editRoleId ? 'Role updated' : 'Role created');
+    await loadRoles();
+  }catch(e){ toast('Role save failed: '+e.message); }
+  btn.disabled=false; btn.textContent='Simpan';
+}
+async function delRole(id, name){
+  if(!confirm('Hapus role "'+name+'"?')) return;
+  if(needLogin()) return;
+  try{ await jpost('/api/roles/'+encodeURIComponent(id), {}, 'DELETE'); toast('Role deleted'); await loadRoles(); }catch(e){ toast('Delete failed: '+e.message); }
+}
+
+// User modal
+function openUserModal(id){
+  editUserId = id||null;
+  document.getElementById('userModalTitle').textContent = id ? 'Edit User' : '+ User';
+  const u = id ? USERS.find(x=>x.id===id) : null;
+  document.getElementById('uName').value = u ? u.username : '';
+  document.getElementById('uPass').value = '';
+  document.getElementById('uPass').placeholder = id ? 'kosong = tidak ganti' : '••••';
+  document.getElementById('uRole').value = u ? (u.role||'') : '';
+  document.getElementById('modalUser').classList.add('open');
+}
+function editUser(id){ openUserModal(id); }
+async function saveUser(){
+  if(needLogin()) return;
+  const username=document.getElementById('uName').value.trim();
+  const password=document.getElementById('uPass').value;
+  const role=document.getElementById('uRole').value;
+  if(!username){ toast('Username required'); return; }
+  if(!editUserId && !password){ toast('Password required untuk user baru'); return; }
+  const body={}; body.username=username; if(password) body.password=password; body.role=role;
+  const btn=document.getElementById('userSaveBtn'); btn.disabled=true; btn.textContent='Menyimpan…';
+  try{
+    if(editUserId) await jpost('/api/users/'+encodeURIComponent(editUserId), body, 'PUT');
+    else await jpost('/api/users', body, 'POST');
+    closeModal('modalUser');
+    toast(editUserId ? 'User updated (RADIUS sync stub log di server)' : 'User created (RADIUS sync stub)');
+    await loadUsers();
+  }catch(e){ toast('User save failed: '+e.message); }
+  btn.disabled=false; btn.textContent='Simpan';
+}
+async function delUser(id, name){
+  if(!confirm('Hapus user "'+name+'"?')) return;
+  if(needLogin()) return;
+  try{ await jpost('/api/users/'+encodeURIComponent(id), {}, 'DELETE'); toast('User deleted'); await loadUsers(); }catch(e){ toast('Delete failed: '+e.message); }
+}
+
+if(!tok()){
+  document.getElementById('roleTable').innerHTML='<tr><td colspan="5" class="empty">Login dulu di <a href="index.html" style="color:#2563EB">index.html</a> (superadmin/Admin@123) — lalu refresh. <span class="mut">Preview read-only: tabel kosong.</span></td></tr>';
+  document.getElementById('userTable').innerHTML='<tr><td colspan="4" class="empty">Login dulu — <a href="index.html" style="color:#2563EB">index.html</a></td></tr>';
+} else {
+  loadAll();
+}
+</script>
+</body>
+</html>

@@ -5,87 +5,8 @@
 <title>NMS — Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js">
-// --- NMS v0.5 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
-
-
-
-
-
-</script>
-<script src="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack-all.js">
-// --- NMS v0.5 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
-(function backendSync(){
-  function tok(){ return localStorage.getItem('nms_token'); }
-  function hdr(){ var h={}; var t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
-  // update KPI from /api/devices if available
-  fetch('/api/devices',{headers: hdr()}).then(r=> r.ok? r.json(): null).then(arr=>{
-    if(!arr||!Array.isArray(arr)) return;
-    var total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
-    // find KPI cards: those with h3 Online/Offline etc
-    var cards=document.querySelectorAll('.card');
-    // simple: find elements containing "12 devices" etc and replace
-    // Do minimal: update document title KPI hint
-    var kpiOnline=document.querySelector('[data-kpi="online"]');
-    // fallback: update first KPI numbers via text replace if structure exists
-    var txt=document.body.innerHTML;
-    // Instead, update visible KPI spans if we can find
-    // Look for specific KPI values by replacing known dummy
-    var els=document.querySelectorAll('h3, b, span');
-    // noop — keep preview stable; log count
-    console.log('[NMS] backend devices', total, 'online', online);
-    var statusEl=document.getElementById('status');
-    // stash for GridStack widgets that need device picker
-    window.NMS_DEVICES=arr;
-  }).catch(()=>{});
-  fetch('/api/racks',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
-    if(!arr) return;
-    console.log('[NMS] backend racks', arr.length);
-    window.NMS_RACKS=arr;
-  }).catch(()=>{});
-  fetch('/api/device-groups',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
-    if(!arr) return;
-    console.log('[NMS] backend groups', arr.length);
-    window.NMS_GROUPS=arr;
-  }).catch(()=>{});
-  // if no token, redirect to login after 1s (preview allow)
-  if(!tok() && !localStorage.getItem('nms_setup_done')){
-    // keep preview but hint
-    console.log('[NMS] no token — preview mode');
-  }
-})();
-
-
-// v0.5 — real metrics chart: fetch /api/metrics/device/{id}
-async function fetchDeviceMetrics(id){
-  try{
-    const r=await fetch('/api/metrics/device/'+id, {headers: (window.hdr? hdr(): {})});
-    if(!r.ok) return null;
-    return await r.json();
-  }catch(e){ return null; }
-}
-window.fetchDeviceMetrics = fetchDeviceMetrics;
-// Auto-refresh KPI from backend every 10s if token exists
-(function(){
-  if(!localStorage.getItem('nms_token')) return;
-  async function refreshKPI(){
-    try{
-      const r=await fetch('/api/devices', {headers: hdr()});
-      if(!r.ok) return;
-      const arr=await r.json();
-      const total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
-      // try to update KPI cards by text
-      document.querySelectorAll('.kpi, [data-kpi]').forEach(el=>{});
-      // update header stats if exists
-      const elTotal=document.getElementById('kpiTotal'); if(elTotal) elTotal.textContent=total;
-      const elOn=document.getElementById('kpiOnline'); if(elOn) elOn.textContent=online;
-      const elOff=document.getElementById('kpiOffline'); if(elOff) elOff.textContent=offline;
-    }catch(e){}
-  }
-  setInterval(refreshKPI, 10000);
-})();
-
-</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack-all.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--sidebar-bg:#0A2463;--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--ink:#0F172A;--muted:#64748B}
@@ -219,8 +140,8 @@ body.customizing .banner-custom{display:flex}
     <a href="devices.html">🖥️ <span class="lbl">Devices</span></a>
     <a href="topology.html">🗺️ <span class="lbl">Topology</span></a>
     <div class="grp hide-mini">Management</div>
-    <a href="#" onclick="alert('Remote Console — P1 next');return false">💻 <span class="lbl">Remote</span></a>
-    <a href="#" onclick="alert('Roles — P1 next');return false">👥 <span class="lbl">Users & Roles</span></a>
+    <a href="devices.html">💻 <span class="lbl">Remote</span></a>
+    <a href="users-roles.html">👥 <span class="lbl">Users & Roles</span></a>
     <a href="#" onclick="alert('Alerts — P1 next');return false">🔔 <span class="lbl">Alerts</span></a>
     <div class="grp hide-mini">System</div>
     <a href="index.html" onclick="localStorage.clear()">🚪 <span class="lbl">Logout</span></a>

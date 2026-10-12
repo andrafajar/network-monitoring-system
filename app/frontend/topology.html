@@ -4,6 +4,9 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NMS — Topology</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--sidebar-bg:#0A2463;--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--ink:#0F172A;--muted:#64748B;--line2:#CBD5E1}
@@ -98,16 +101,33 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 .zoom-bar button{width:32px;height:32px;border-radius:999px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:800;color:var(--ink);display:flex;align-items:center;justify-content:center}
 .zoom-bar button:hover{border-color:#2563EB;color:#2563EB}
 .empty{border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);background:var(--bg)}
+
+#termModal{display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px}
+#termBox{width:min(1100px,96vw);height:min(78vh,720px);background:#0F172A;border:1px solid #334155;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+#termHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:#0A2463;color:#fff;font-weight:700}
+#termHeader select,#termHeader button{padding:6px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:600;font-size:.78rem}
+#termGrid{flex:1;display:grid;gap:6px;padding:6px;background:#020617;overflow:auto}
+#termGrid.cols1{grid-template-columns:1fr}
+#termGrid.cols2{grid-template-columns:1fr 1fr}
+.termPane{background:#000;border:1px solid #1E293B;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-height:180px}
+.termPane .paneBar{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#0F172A;color:#CBD5E1;font-size:.72rem;border-bottom:1px solid #1E293B}
+.termPane .xterm{flex:1;padding:4px}
 </style>
 </head>
 <body data-sidebar="navy">
 <div class="sidebar" id="sidebar">
   <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Topology • v0.5</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
   <nav class="menu">
+    <div class="grp hide-mini">Monitoring</div>
     <a href="dashboard.html">📊 <span class="lbl">Dashboard</span></a>
-    <a class="on" href="topology.html">🗺️ <span class="lbl">Topology</span></a>
     <a href="devices.html">🖥️ <span class="lbl">Devices</span></a>
-    <a href="index.html">🚪 <span class="lbl">Kembali ke Login</span></a>
+    <a class="on" href="topology.html">🗺️ <span class="lbl">Topology</span></a>
+    <div class="grp hide-mini">Management</div>
+    <a href="devices.html">💻 <span class="lbl">Remote</span></a>
+    <a href="users-roles.html">👥 <span class="lbl">Users & Roles</span></a>
+    <a href="#" onclick="alert('Alerts — P1 next');return false">🔔 <span class="lbl">Alerts</span></a>
+    <div class="grp hide-mini">System</div>
+    <a href="index.html" onclick="localStorage.clear()">🚪 <span class="lbl">Logout</span></a>
   </nav>
   <div class="theme-panel">
     <div class="tl hide-mini">Warna Sidebar</div>
@@ -363,7 +383,7 @@ function showSelection(node){
   if(layer==='top'){
     actions.innerHTML=`<button class="btn sm" onclick="setLayer('${node.id}')">Masuk →</button><button class="btn ghost sm" onclick="renameRack('${node.id}')">Rename</button>`;
   } else {
-    actions.innerHTML=`<button class="btn sm" onclick="alert('Remote '+selectedId+' — bastion P1')">Remote</button><button class="btn ghost sm" onclick="editDevice('${node.id}')">Edit</button><button class="btn ghost sm" onclick="removeDevice('${node.id}')">Hapus</button>`;
+    actions.innerHTML=`<div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn sm" onclick="openTermTopology('${node.id}','ssh')" title="SSH via bastion">SSH</button><button class="btn sm" onclick="openTermTopology('${node.id}','telnet')">Telnet</button><button class="btn sm" onclick="openTermTopology('${node.id}','api')">API</button><button class="btn sm" onclick="openWebFigTopology('${node.id}')">WebFig</button></div><button class="btn ghost sm" onclick="editDevice('${node.id}')">Edit</button><button class="btn ghost sm" onclick="removeDevice('${node.id}')">Hapus</button>`;
   }
   document.getElementById('sideTitle').textContent=node.name;
 }
@@ -441,7 +461,7 @@ function render(){
     };
     d.ondblclick=()=>{
       if(isTop) setLayer(n.id);
-      else alert('Remote '+n.name+' — bastion P1 (SSH/Telnet/MikroTik API/WebFig)');
+      else openTermTopology(n.id,'ssh');
     };
     vp.appendChild(d);
   });
@@ -674,10 +694,125 @@ async function wireTopoSensors(){
 }
 setTimeout(wireTopoSensors, 700);
 
+// ===== Terminal + WebFig helpers (bastion WS) — mirror devices.html =====
+function tok(){ return localStorage.getItem('nms_token'); }
+function hdr(){ const t=tok(); const h={}; if(t) h['Authorization']='Bearer '+t; return h; }
+let termPanes=[]; let termPaneCounter=0;
+function termWSUrl(proto, devId){
+  const p = proto==='api' ? 'mikrotik-api' : proto;
+  return (location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/bastion/'+p+'?device_id='+encodeURIComponent(devId)+'&token='+encodeURIComponent(tok()||'');
+}
+function ensureTermDeps(){ return typeof Terminal!=='undefined'; }
+async function refreshTermDevSel(){
+  const sel=document.getElementById('termDevSel'); if(!sel) return;
+  try{
+    const r=await fetch('/api/devices',{headers:hdr()}); if(!r.ok) return;
+    const devs=await r.json(); window._NMS_DEVS=devs;
+    sel.innerHTML='<option value="">+ device…</option>'+devs.map(d=>`<option value="${d.id}">${d.id} — ${d.name} (${d.ip})</option>`).join('');
+  }catch(e){}
+}
+function createTermPane(devId, proto){
+  proto=proto||document.getElementById('termProto').value||'ssh';
+  devId=devId||document.getElementById('termDevSel').value|| (window._NMS_DEVS&&window._NMS_DEVS[0]&&window._NMS_DEVS[0].id) || '';
+  if(!devId){ alert('Pilih device dulu (login + pilih device)'); return; }
+  const grid=document.getElementById('termGrid');
+  const paneId='pane_'+(++termPaneCounter);
+  const pane=document.createElement('div'); pane.className='termPane'; pane.id=paneId;
+  const dname=(window._NMS_DEVS&&window._NMS_DEVS.find(d=>d.id===devId)||{name:devId}).name;
+  pane.innerHTML=`<div class="paneBar"><span>${proto.toUpperCase()} • ${devId} — ${dname}</span><span><button class="btn sm" onclick="termReconnect('${paneId}')">↻ Reconnect</button><button class="btn sm" onclick="termClosePane('${paneId}')">✕</button></span></div><div class="xterm" id="${paneId}_xterm"></div>`;
+  grid.appendChild(pane);
+  const g=document.getElementById('termGrid'); g.className = g.children.length<=1 ? 'cols1' : 'cols2';
+  document.getElementById('termHint').textContent=g.children.length+' pane(s)';
+  if(proto==='api'){
+    const xel=document.getElementById(paneId+'_xterm');
+    xel.style.padding='8px'; xel.style.fontFamily='ui-monospace,monospace'; xel.style.fontSize='.78rem'; xel.style.color='#CBD5E1'; xel.style.whiteSpace='pre-wrap'; xel.style.overflow='auto'; xel.style.background='#000';
+    xel.textContent='[API] GET /rest/interface — loading...\n';
+    fetch('/api/bastion/mikrotik-api?device_id='+encodeURIComponent(devId)+'&path=/rest/interface',{headers:hdr()}).then(r=>r.text().then(t=>{ xel.textContent='[API] GET /rest/interface @ '+devId+'\nStatus '+r.status+'\n\n'+t.slice(0,8000); })).catch(e=> xel.textContent='[API] error: '+e.message);
+    const bar=pane.querySelector('.paneBar span'); bar.style.cursor='pointer'; bar.title='Click to change REST path';
+    bar.onclick=()=>{
+      const p=prompt('REST path', '/rest/interface'); if(!p) return;
+      xel.textContent='[API] GET '+p+' — loading...\n';
+      fetch('/api/bastion/mikrotik-api?device_id='+encodeURIComponent(devId)+'&path='+encodeURIComponent(p),{headers:hdr()}).then(r=>r.text().then(t=>{ xel.textContent='[API] GET '+p+' @ '+devId+'\nStatus '+r.status+'\n\n'+t.slice(0,8000); }));
+    };
+    termPanes.push({id:paneId, devId, proto, el:pane, ws:null, term:null});
+    return;
+  }
+  if(!ensureTermDeps()){ pane.querySelector('.xterm').textContent='xterm not loaded — cek CDN'; return; }
+  const term=new Terminal({cursorBlink:true, fontSize:13, theme:{background:'#000000',foreground:'#CBD5E1'}});
+  const fit=new FitAddon.FitAddon(); term.loadAddon(fit);
+  term.open(document.getElementById(paneId+'_xterm'));
+  try{ fit.fit(); }catch(e){}
+  term.writeln('\x1b[33m[NMS] '+proto.toUpperCase()+' → '+devId+' — connecting via bastion (WS)...\x1b[0m');
+  const wsUrl=termWSUrl(proto, devId);
+  let ws; try{ ws=new WebSocket(wsUrl); }catch(e){ term.writeln('\x1b[31m[ws] '+e.message+'\x1b[0m'); }
+  termPanes.push({id:paneId, devId, proto, term, fit, ws, el:pane});
+  if(!ws) return;
+  ws.binaryType='arraybuffer';
+  ws.onopen=()=> term.writeln('\x1b[32m[ws] connected → '+wsUrl.replace(/token=[^&]+/,'token=***')+'\x1b[0m');
+  ws.onmessage=(ev)=>{
+    if(typeof ev.data==='string'){ term.write(ev.data); }
+    else { const arr=new Uint8Array(ev.data); let s=''; for(let i=0;i<arr.length;i++) s+=String.fromCharCode(arr[i]); term.write(s); }
+  };
+  ws.onclose=()=> term.writeln('\r\n\x1b[33m[ws] closed\x1b[0m');
+  ws.onerror=()=> term.writeln('\r\n\x1b[31m[ws] error\x1b[0m');
+  term.onData(d=>{ if(ws && ws.readyState===1) ws.send(d); });
+  const ro=new ResizeObserver(()=>{ try{ fit.fit(); if(ws.readyState===1) ws.send(JSON.stringify({type:'resize', cols: term.cols, rows: term.rows})); }catch(e){} });
+  ro.observe(pane);
+}
+function termClosePane(id){ const idx=termPanes.findIndex(p=>p.id===id); if(idx===-1) return; const p=termPanes[idx]; try{ p.ws&&p.ws.close(); }catch(e){} try{ p.term&&p.term.dispose(); }catch(e){} p.el.remove(); termPanes.splice(idx,1); const g=document.getElementById('termGrid'); g.className=g.children.length<=1?'cols1':'cols2'; document.getElementById('termHint').textContent=g.children.length+' pane(s)'; }
+function termAddPane(){ createTermPane(); }
+function termReconnect(id){ const p=termPanes.find(x=>x.id===id); if(!p) return; if(p.proto==='api'){ const x=p.el.querySelector('.xterm'); x.textContent='[API] reload...'; fetch('/api/bastion/mikrotik-api?device_id='+encodeURIComponent(p.devId)+'&path=/rest/interface',{headers:hdr()}).then(r=>r.text().then(t=> x.textContent='[API] @ '+p.devId+' '+r.status+'\n'+t.slice(0,8000)) ); return; } try{ p.ws&&p.ws.close(); }catch(e){} p.term.writeln('\r\n\x1b[33m[reconnect] '+p.proto+' → '+p.devId+'\x1b[0m'); const wsUrl=termWSUrl(p.proto, p.devId); const ws=new WebSocket(wsUrl); p.ws=ws; ws.binaryType='arraybuffer'; ws.onopen=()=> p.term.writeln('\x1b[32m[ws] reconnected\x1b[0m'); ws.onmessage=(ev)=>{ if(typeof ev.data==='string') p.term.write(ev.data); else { const a=new Uint8Array(ev.data); let s=''; for(let i=0;i<a.length;i++) s+=String.fromCharCode(a[i]); p.term.write(s);} }; ws.onclose=()=> p.term.writeln('\r\n\x1b[33m[ws] closed\x1b[0m'); ws.onerror=()=> p.term.writeln('\r\n\x1b[31m[ws] error\x1b[0m'); }
+function termSplitToggle(){ const g=document.getElementById('termGrid'); g.className = g.className==='cols1' ? 'cols2' : 'cols1'; }
+function termClear(){ termPanes.forEach(p=> p.term&&p.term.clear()); }
+function openTermTopology(nodeId, proto){
+  // nodeId could be mock id — try to map via _NMS_DEVS name/ip, else use nodeId as is and let picker handle fallback
+  let devId=nodeId;
+  // if nodeId looks like mock dev*, try to find by name
+  const mockNode = [...racks, ...Object.values(devicesByRack).flat()].find(n=>n.id===nodeId);
+  if(mockNode){
+    // try match by name in real devs
+    const real = window._NMS_DEVS && window._NMS_DEVS.find(d=> d.name===mockNode.name || d.ip===mockNode.ip);
+    if(real) devId=real.id;
+  }
+  document.getElementById('termModal').style.display='flex';
+  document.getElementById('termModal').style.alignItems='center';
+  document.getElementById('termModal').style.justifyContent='center';
+  document.getElementById('termProto').value=proto||'ssh';
+  document.getElementById('termTitle').textContent='Terminal — '+(proto||'ssh').toUpperCase()+' @ '+(devId||'');
+  if(!window._NMS_DEVS || !window._NMS_DEVS.length) refreshTermDevSel().then(()=>{ if(devId) document.getElementById('termDevSel').value=devId; if(termPanes.length===0) createTermPane(devId, proto); else if(devId) createTermPane(devId, proto); });
+  else { if(devId) document.getElementById('termDevSel').value=devId; if(termPanes.length===0) createTermPane(devId, proto); else if(devId) createTermPane(devId, proto); }
+}
+function closeTermModal(){ document.getElementById('termModal').style.display='none'; }
+function openWebFigTopology(nodeId){
+  let devId=nodeId;
+  const mockNode = [...racks, ...Object.values(devicesByRack).flat()].find(n=>n.id===nodeId);
+  if(mockNode){ const real = window._NMS_DEVS && window._NMS_DEVS.find(d=> d.name===mockNode.name || d.ip===mockNode.ip); if(real) devId=real.id; }
+  if(!devId){ alert('Pilih device dulu'); return; }
+  // use proxy webfig via API + iframe modal, also allow popup
+  document.getElementById('webfigModal').style.display='flex';
+  document.getElementById('webfigModal').style.alignItems='center';
+  document.getElementById('webfigModal').style.justifyContent='center';
+  document.getElementById('webfigTitle').textContent='WebFig — '+devId;
+  document.getElementById('webfigOpenRaw').href='/api/bastion/webfig?device_id='+encodeURIComponent(devId);
+  document.getElementById('webfigFrame').src='/api/bastion/webfig?device_id='+encodeURIComponent(devId);
+  // also proxy via webconsole wrapper if direct fails
+  document.getElementById('webfigFrame').onerror=()=>{ document.getElementById('webfigFrame').src='/api/bastion/webconsole/'+encodeURIComponent(devId); };
+}
+function closeWebfigModal(){ document.getElementById('webfigModal').style.display='none'; document.getElementById('webfigFrame').src='about:blank'; }
+document.getElementById('termModal').addEventListener('click',(e)=>{ if(e.target.id==='termModal') closeTermModal(); });
+document.getElementById('webfigModal').addEventListener('click',(e)=>{ if(e.target.id==='webfigModal') closeWebfigModal(); });
+document.getElementById('termProto').onchange=()=>{};
+document.getElementById('termDevSel').onchange=(e)=>{ if(e.target.value) createTermPane(e.target.value); };
+setTimeout(refreshTermDevSel, 600);
+
+function openTerminal(devId, proto){ return openTermTopology(devId, proto); }
+function openWebFig(devId){ return openWebFigTopology(devId); }
+function openWebConsole(devId){ window.open('/api/bastion/webconsole/'+encodeURIComponent(devId), '_blank'); }
+
 // --- NMS v0.4 backend topology sync ---
 (function topoSync(){
-  function hdr(){ var t=localStorage.getItem('nms_token'); var h={}; if(t) h['Authorization']='Bearer '+t; return h; }
-  fetch('/api/topology?layer=top',{headers: hdr()}).then(r=>r.ok?r.json():null).then(d=>{
+  function hdrSync(){ var t=localStorage.getItem('nms_token'); var h={}; if(t) h['Authorization']='Bearer '+t; return h; }
+  fetch('/api/topology?layer=top',{headers: hdrSync()}).then(r=>r.ok?r.json():null).then(d=>{
     if(!d) return;
     console.log('[NMS] topology top', d);
     // don't override localStorage nms_topo if user already moved nodes; just stash
@@ -686,5 +821,37 @@ setTimeout(wireTopoSensors, 700);
 })();
 
 </script>
+<!-- Terminal Modal (shared bastion WS — same as devices.html) -->
+<div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">
+  <div id="termBox">
+    <div id="termHeader">
+      <span id="termTitle">Terminal — bastion</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="termProto"><option value="ssh">SSH 22</option><option value="telnet">Telnet 23</option><option value="api">MikroTik API</option></select>
+        <select id="termDevSel" style="min-width:140px"><option value="">+ device…</option></select>
+        <select id="termSplit"><option value="1">1 pane</option><option value="2">2 panes (split)</option></select>
+        <button onclick="termAddPane()">+ Pane</button>
+        <button onclick="termSplitToggle()">Toggle split</button>
+        <button onclick="termClear()">Clear</button>
+        <button onclick="closeTermModal()" style="background:#DC2626;border-color:#DC2626">✕ Tutup</button>
+      </div>
+    </div>
+    <div id="termGrid" class="cols1"></div>
+    <div style="padding:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#0F172A;border-top:1px solid #1E293B">
+      <span style="font-size:.72rem;color:#94A3B8">Credentials di server — browser hanya WS + token. API pane = REST viewer.</span>
+      <span id="termHint" style="font-size:.72rem;color:#94A3B8;margin-left:auto"></span>
+    </div>
+  </div>
+</div>
+<!-- WebFig iframe modal -->
+<div id="webfigModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:91;align-items:center;justify-content:center;padding:12px">
+  <div style="width:min(1200px,96vw);height:min(82vh,760px);background:#0F172A;border:1px solid #334155;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#0A2463;color:#fff;font-weight:700">
+      <span id="webfigTitle">WebFig</span>
+      <div style="display:flex;gap:8px"><a id="webfigOpenRaw" href="#" target="_blank" style="color:#93C5FD;font-size:.78rem">Open raw →</a><button onclick="closeWebfigModal()" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:600">✕ Tutup</button></div>
+    </div>
+    <iframe id="webfigFrame" style="flex:1;width:100%;border:0;background:#fff"></iframe>
+  </div>
+</div>
 </body>
 </html>
