@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NMS — Topology</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--sidebar-bg:#0A2463;--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--ink:#0F172A;--muted:#64748B;--line2:#CBD5E1}
+[data-sidebar="navy"]{--sidebar-bg:#0A2463}
+[data-sidebar="green"]{--sidebar-bg:#064E3B}
+[data-sidebar="purple"]{--sidebar-bg:#4C1D95}
+[data-sidebar="slate"]{--sidebar-bg:#1E293B}
+[data-sidebar="crimson"]{--sidebar-bg:#7F1D1D}
+[data-sidebar="teal"]{--sidebar-bg:#134E4A}
+[data-theme="dark"]{--bg:#020617;--card:#1E293B;--line:#334155;--ink:#F1F5F9;--muted:#94A3B8;--line2:#475569}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);display:flex;min-height:100vh}
+.sidebar{width:260px;background:var(--sidebar-bg);color:#CBD5E1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto;transition:width .22s;flex-shrink:0}
+.sidebar.minimized{width:72px}
+.sidebar.minimized .hide-mini{display:none!important}
+.sidebar.minimized .logo{padding:12px 6px;gap:6px}
+.sidebar.minimized .logo .hide-mini{display:none}
+.sidebar.minimized .menu a{justify-content:center}
+.sidebar.minimized .menu a .lbl{display:none}
+.logo{padding:14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+.logo .ic{width:36px;height:36px;min-width:36px;border-radius:10px;background:#fff;color:#0A2463;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;letter-spacing:-.02em;box-shadow:0 1px 2px rgba(0,0,0,.08), 0 0 0 1px rgba(255,255,255,.12) inset}
+.logo .ic svg{width:20px;height:20px}
+.sidebar.minimized .logo .ic{width:32px;height:32px;min-width:32px;border-radius:8px;font-size:.95rem}
+.menu{padding:10px;flex:1}
+.menu a{display:flex;gap:10px;padding:9px 10px;border-radius:10px;color:#CBD5E1;text-decoration:none;font-size:.85rem;font-weight:600}
+.menu a.on{background:rgba(255,255,255,.12);color:#fff}
+.menu a:hover{background:rgba(255,255,255,.07)}
+.theme-panel{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08);margin-top:auto}
+.theme-panel .tl{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94A3B8}
+.dots{display:flex;gap:6px;margin:8px 0 10px;flex-wrap:wrap}
+.dots button{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.dots button.active{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.dark-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border-radius:999px;padding:7px 10px;font-size:.75rem;font-weight:600;cursor:pointer;user-select:none}
+.dark-row:hover{background:rgba(255,255,255,.12)}
+.switch{position:relative;width:38px;height:22px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:rgba(255,255,255,.25);border-radius:999px;transition:.2s}
+.slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.switch input:checked + .slider{background:#2563EB}
+.switch input:checked + .slider:before{transform:translateX(16px)}
+#sideToggle{width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:18px;line-height:1;transition:background .15s}
+#sideToggle:hover{background:rgba(255,255,255,.16)}
+.sidebar.minimized #sideToggle{margin-left:4px}
+.sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;display:none}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;flex-wrap:wrap}
+.bread{font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+.bread b{color:var(--ink)}
+.bread a{color:#2563EB;text-decoration:none;font-weight:700}
+.content{flex:1;padding:14px;display:flex;gap:14px;min-height:0;align-items:stretch}
+#topMinBtn{display:none}
+@media(max-width:1100px){#topMinBtn{display:inline-flex}.sidebar{position:fixed;z-index:50}.sidebar.minimized{transform:translateX(-100%)}.content{flex-direction:column}}
+.canvas{flex:1;background:var(--card);border:1px solid var(--line);border-radius:16px;position:relative;overflow:hidden;min-height:560px;box-shadow:0 2px 10px rgba(0,0,0,.04);background-image:radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0);background-size:22px 22px;cursor:grab;touch-action:none;user-select:none}
+.canvas.grabbing{cursor:grabbing}
+.viewport{position:absolute;inset:0;transform-origin:0 0;will-change:transform}
+.node.dragging{opacity:.92;z-index:20;box-shadow:0 14px 28px rgba(0,0,0,.18)!important;transform:scale(1.02);cursor:grabbing}
+.canvas.hint-pan::after{content:'Geser peta: drag area kosong • Drag node untuk pindah • Scroll untuk zoom';position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(15,23,42,.82);color:#fff;font-size:.68rem;font-weight:700;border-radius:999px;padding:5px 10px;pointer-events:none;z-index:5}
+[data-theme="dark"] .canvas{background-image:radial-gradient(circle at 1px 1px, rgba(148,163,184,.08) 1px, transparent 0)}
+.node{position:absolute;background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:11px 13px;min-width:168px;box-shadow:0 6px 20px rgba(0,0,0,.07);cursor:pointer;transition:transform .15s, box-shadow .15s, border-color .15s}
+.node:hover{transform:translateY(-1px);box-shadow:0 10px 26px rgba(0,0,0,.10);border-color:var(--line2)}
+.node.rack{border-color:#2563EB;border-width:1.8px;background:linear-gradient(180deg,#EFF6FF 0%, var(--card) 55%);padding:13px 14px;min-width:180px}
+[data-theme="dark"] .node.rack{background:linear-gradient(180deg,#1E3A8A 0%, var(--card) 60%)}
+.node .title{font-weight:800;font-size:.86rem;display:flex;align-items:center;gap:6px}
+.node .sub{font-size:.72rem;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.node .badge{font-size:.64rem;font-weight:800;border-radius:999px;padding:2px 7px;background:#D1FAE5;color:#065F46;line-height:1}
+.node .hint{font-size:.66rem;color:#2563EB;font-weight:700;margin-top:6px;display:flex;align-items:center;gap:4px}
+.node.selected{border-color:#0A2463;box-shadow:0 0 0 3px rgba(10,36,99,.14), 0 10px 26px rgba(0,0,0,.10)}
+.edge{position:absolute;height:2.5px;background:#94A3B8;transform-origin:left center;border-radius:999px}
+.edge.hl{background:#2563EB}
+.edge-label{position:absolute;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 9px;font-size:.68rem;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.08);white-space:nowrap;color:var(--ink);display:flex;align-items:center;gap:6px}
+.edge-label b{font-weight:800}
+.edge-label .bps{color:#2563EB}
+.side{width:340px;min-width:300px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:0;box-shadow:0 2px 10px rgba(0,0,0,.04);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 88px);position:sticky;top:72px}
+.side-head{padding:14px 14px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.side-head b{font-size:.9rem;font-weight:800}
+.side-body{padding:12px 14px;overflow:auto;flex:1}
+.side-foot{padding:12px 14px;border-top:1px solid var(--line);background:var(--bg)}
+.btn{background:#0A2463;color:#fff;border:0;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer;font-size:.78rem;display:inline-flex;align-items:center;gap:6px}
+.btn.ghost{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+.btn.sm{padding:6px 10px;font-size:.74rem;border-radius:8px}
+.btn.block{width:100%;justify-content:center}
+.mut{color:var(--muted);font-size:.78rem}
+.input, select.input{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:.82rem;width:100%;background:var(--card);color:var(--ink)}
+.input:focus, select.input:focus{outline:none;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.chip{font-size:.68rem;font-weight:700;border-radius:999px;padding:4px 8px;background:var(--bg);border:1px solid var(--line);color:var(--muted)}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.legend span{font-size:.68rem;display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+.legend i{width:14px;height:3px;border-radius:999px;background:#94A3B8;display:inline-block}
+.legend i.hl{background:#2563EB}
+.toolbar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.toolbar .btn{flex:1;justify-content:center}
+.zoom-bar{position:absolute;left:12px;bottom:12px;display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px;box-shadow:0 4px 16px rgba(0,0,0,.08);z-index:4}
+.zoom-bar button{width:32px;height:32px;border-radius:999px;border:1px solid var(--line);background:var(--card);cursor:pointer;font-weight:800;color:var(--ink);display:flex;align-items:center;justify-content:center}
+.zoom-bar button:hover{border-color:#2563EB;color:#2563EB}
+.empty{border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);background:var(--bg)}
+</style>
+</head>
+<body data-sidebar="navy">
+<div class="sidebar" id="sidebar">
+  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Topology • v0.4</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
+  <nav class="menu">
+    <a href="dashboard.html">📊 <span class="lbl">Dashboard</span></a>
+    <a class="on" href="topology.html">🗺️ <span class="lbl">Topology</span></a>
+    <a href="index.html">🚪 <span class="lbl">Kembali ke Login</span></a>
+  </nav>
+  <div class="theme-panel">
+    <div class="tl hide-mini">Warna Sidebar</div>
+    <div class="dots">
+      <button data-theme="navy" style="background:#0A2463" title="Navy"></button>
+      <button data-theme="green" style="background:#059669" title="Green"></button>
+      <button data-theme="purple" style="background:#7C3AED" title="Purple"></button>
+      <button data-theme="slate" style="background:#334155" title="Slate"></button>
+      <button data-theme="crimson" style="background:#DC2626" title="Crimson"></button>
+      <button data-theme="teal" style="background:#0F766E" title="Teal"></button>
+    </div>
+    <label class="dark-row hide-mini"><span style="display:flex;align-items:center;gap:6px"><span id="darkIcon">🌙</span> Dark mode</span><span class="switch"><input type="checkbox" id="darkToggle"><span class="slider"></span></span></label>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sbOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40"></div>
+<div class="main">
+  <div class="topbar">
+    <button class="btn ghost" id="topMinBtn" style="padding:6px 10px" title="Toggle sidebar">☰</button>
+    <div class="bread" id="bread"><a href="#" onclick="setLayer('top');return false">Top</a> <span style="color:var(--muted)">›</span> <b id="breadCur">Rack View</b> <span id="breadExtra" class="mut" style="margin-left:6px"></span></div>
+    <span style="flex:1"></span>
+    <button class="btn ghost sm" onclick="resetView()">◎ Reset view</button>
+    <button class="btn ghost sm" onclick="addRack()">+ Rack</button>
+    <button class="btn ghost sm" onclick="addDevice()">+ Device</button>
+    <button class="btn sm" onclick="openLinkModal()">+ Link</button>
+  </div>
+  <div class="content">
+    <div class="canvas hint-pan" id="canvas">
+      <div class="viewport" id="viewport"></div>
+      <div class="zoom-bar"><button onclick="zoomBy(0.12)" title="Zoom in">+</button><button onclick="zoomBy(-0.12)" title="Zoom out">−</button><button onclick="resetView()" title="Reset">◎</button></div>
+      <div style="position:absolute;right:12px;bottom:12px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 8px;font-size:.68rem;color:var(--muted);display:flex;gap:6px;align-items:center;z-index:4"><span id="zoomLabel">100%</span><span style="opacity:.5">•</span><span id="panLabel" style="font-family:monospace">0,0</span></div>
+    </div>
+    <div class="side" id="side">
+      <div class="side-head"><b id="sideTitle">Detail</b><span style="flex:1"></span><span class="chip" id="sideChip">Top • 3 racks</span></div>
+      <div class="side-body">
+        <div class="toolbar">
+          <button class="btn ghost sm" onclick="addRack()">+ Rack</button>
+          <button class="btn ghost sm" onclick="addDevice()">+ Device</button>
+          <button class="btn sm" onclick="openLinkModal()">+ Link</button>
+        </div>
+        <p class="mut" id="detail" style="line-height:1.5">Klik rack untuk drill-down. Klik device untuk remote. Link paralel otomatis berjarak — tidak tumpang tindih. Semua link bisa ditempel sensor SNMP + deskripsi.</p>
+
+        <div id="selectionBox" style="display:none;margin-top:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px">
+          <b id="selTitle" style="font-size:.82rem">—</b>
+          <div id="selMeta" class="mut" style="font-size:.72rem;margin-top:4px"></div>
+          <div id="selActions" style="display:flex;gap:8px;margin-top:8px"></div>
+        </div>
+
+        <div style="margin-top:12px;display:grid;gap:8px">
+          <label class="mut" style="font-weight:600">Tambah / Edit Link
+            <select id="sensorPick" class="input" style="margin-top:6px"><option>RB-01 ether1 (ifInOctets.2) — 1.2 Gbps</option><option>RB-01 ether2 — 800 Mbps</option><option>SW-01 port24 — 10G</option><option>Tanpa sensor</option></select>
+          </label>
+          <input id="linkDesc" class="input" placeholder="Deskripsi — cth: VLAN 10 uplink">
+          <div style="display:flex;gap:8px"><input id="linkCap" class="input" placeholder="Capacity — cth: 10G / 10000 Mbps"><button class="btn sm" onclick="saveLink()" style="white-space:nowrap">Simpan</button></div>
+          <div style="display:flex;gap:8px">
+            <select id="linkFrom" class="input"><option value="">Dari…</option></select>
+            <select id="linkTo" class="input"><option value="">Ke…</option></select>
+          </div>
+          <p class="mut" style="font-size:.68rem">Pilih 2 node → Simpan Link. Link paralel auto-offset (sejajar berjarak).</p>
+        </div>
+
+        <div style="margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px">
+          <div style="font-weight:800;font-size:.78rem">Legenda</div>
+          <div class="legend"><span><i></i> Normal</span><span><i class="hl"></i> High / Gbps</span></div>
+          <div class="mut" style="font-size:.72rem;margin-top:8px;line-height:1.5">• Rack = container dinamis (bisa tambah) — klik masuk layer<br>• Link = kabel, attach sensor SNMP untuk live bps<br>• 2 kabel A↔B = sejajar berjarak (offset)</div>
+        </div>
+
+        <div style="margin-top:12px">
+          <b style="font-size:.78rem">Rack & Device</b>
+          <div id="rackList" style="margin-top:8px;display:grid;gap:6px"></div>
+        </div>
+      </div>
+      <div class="side-foot">
+        <div class="mut" style="font-size:.70rem;line-height:1.5">Tips: gunakan zoom <b>+ −</b> di canvas. Layer Top = antar-rack, klik rack = masuk isinya.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Link modal -->
+<div id="linkModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:60;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:16px;max-width:520px;width:100%;padding:16px;box-shadow:0 20px 40px rgba(0,0,0,.18)">
+    <b style="font-size:.95rem">Tambah Link</b>
+    <p class="mut" style="font-size:.76rem;margin:4px 0 10px">Hubungkan 2 node di layer ini. Bisa pilih sensor SNMP untuk live traffic.</p>
+    <div style="display:grid;gap:8px">
+      <div style="display:flex;gap:8px"><select id="mFrom" class="input"><option value="">Dari…</option></select><select id="mTo" class="input"><option value="">Ke…</option></select></div>
+      <select id="mSensor" class="input"><option>RB-01 ether1 (ifInOctets.2) — 1.2 Gbps</option><option>RB-01 ether2 — 800 Mbps</option><option>SW-01 port24 — 10G</option><option>Tanpa sensor</option></select>
+      <input id="mDesc" class="input" placeholder="Deskripsi — cth: LAG fiber 10G">
+      <input id="mCap" class="input" placeholder="BPS — cth: 8.2 Gbps">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost sm" style="flex:1" onclick="closeLinkModal()">Batal</button><button class="btn sm" style="flex:1" onclick="confirmLink()">Simpan Link</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const body=document.body, sb=document.getElementById('sidebar'), dt=document.getElementById('darkToggle');
+  const dots=document.querySelectorAll('.dots button');
+  const sideToggle=document.getElementById('sideToggle'), topMinBtn=document.getElementById('topMinBtn');
+  function applyMini(m){ sb.classList.toggle('minimized',m); localStorage.setItem('nms_sidebar_mini',m?'1':'0'); if(sideToggle){ sideToggle.textContent=m?'›':'‹'; sideToggle.title=m?'Expand sidebar':'Minimize sidebar'; } const ov=document.getElementById('sbOverlay'); if(ov){ const isMobile=window.innerWidth<=1000; ov.style.display = (!m && isMobile) ? 'block' : 'none'; } }
+  const _rawMini=localStorage.getItem('nms_sidebar_mini');
+  const savedMini=_rawMini===null ? window.innerWidth<=1000 : _rawMini==='1';
+  const savedSidebar=localStorage.getItem('nms_sidebar_theme')||'navy';
+  const savedDark=localStorage.getItem('nms_dark')==='1';
+  applyMini(savedMini);
+  body.setAttribute('data-sidebar', savedSidebar);
+  dots.forEach(b=>{ if(b.dataset.theme===savedSidebar) b.classList.add('active')});
+  if(savedDark){ body.setAttribute('data-theme','dark'); if(dt) dt.checked=true; }
+  function toggleMini(){ applyMini(!sb.classList.contains('minimized')); }
+  if(sideToggle) sideToggle.onclick=toggleMini;
+  if(topMinBtn) topMinBtn.onclick=toggleMini;
+  const ovEl=document.getElementById('sbOverlay'); if(ovEl) ovEl.onclick=toggleMini;
+  dots.forEach(b=>{ b.onclick=()=>{ const t=b.dataset.theme; body.setAttribute('data-sidebar',t); localStorage.setItem('nms_sidebar_theme',t); dots.forEach(x=>x.classList.remove('active')); b.classList.add('active'); }});
+  function syncDarkIcon(){ const ic=document.getElementById('darkIcon'); if(ic) ic.textContent = (document.body.getAttribute('data-theme')==='dark') ? '☀️' : '🌙'; }
+  if(dt) dt.onchange=()=>{ if(dt.checked){ body.setAttribute('data-theme','dark'); localStorage.setItem('nms_dark','1'); } else { body.removeAttribute('data-theme'); localStorage.setItem('nms_dark','0'); } syncDarkIcon(); }; syncDarkIcon();
+})();
+let layer='top';
+let scale=1;
+let panX=0, panY=0;
+let selectedId=null;
+let isPanning=false, panStartX=0, panStartY=0, panOriginX=0, panOriginY=0;
+let dragNode=null, dragNodeData=null, dragOffX=0, dragOffY=0, dragHasMoved=false;
+const racks=[
+  {id:'rackA',x:90,y:120,name:'Rack A',cnt:'6 devices',b:'5 online',icon:'🗄️'},
+  {id:'rackB',x:420,y:100,name:'Rack B',cnt:'4 devices',b:'3 online',icon:'🗄️'},
+  {id:'rackC',x:250,y:300,name:'Rack C',cnt:'2 devices',b:'2 online',icon:'🗄️'},
+];
+let devicesByRack={
+  rackA:[
+    {id:'rb1',x:70,y:90,name:'RB-01 Core',ip:'192.168.1.1',icon:'🔷'},
+    {id:'sw1',x:340,y:90,name:'SW-01',ip:'192.168.1.2',icon:'🔶'},
+    {id:'srv1',x:200,y:240,name:'SRV-01',ip:'10.0.0.10',icon:'🖥️'},
+  ],
+  rackB:[
+    {id:'rb2',x:100,y:110,name:'RB-02 Cabang',ip:'192.168.2.1',icon:'🔷'},
+    {id:'cctv1',x:360,y:110,name:'CCTV-01',ip:'192.168.1.50',icon:'📹'},
+  ],
+  rackC:[
+    {id:'ap1',x:200,y:140,name:'AP-01',ip:'192.168.3.10',icon:'📡'},
+  ],
+};
+const linksTop=[
+  {a:'rackA',b:'rackB',desc:'2×10G fiber — LAG',bps:'8.2 Gbps',off:0},
+  {a:'rackA',b:'rackB',desc:'1G backup — VLAN 99',bps:'120 Mbps',off:1},
+  {a:'rackA',b:'rackC',desc:'10G — Rack A↔C',bps:'2.1 Gbps',off:0},
+];
+let linksByRack={
+  rackA:[
+    {a:'rb1',b:'sw1',desc:'ether1 — uplink (SNMP if.2)',bps:'1.2 Gbps',off:0},
+    {a:'rb1',b:'sw1',desc:'ether2 — backup',bps:'340 Mbps',off:1},
+    {a:'sw1',b:'srv1',desc:'port24 — TRUNK',bps:'4.5 Gbps',off:0},
+  ],
+  rackB:[],
+  rackC:[],
+};
+function saveView(){ try{ localStorage.setItem('nms_topo', JSON.stringify({layer, scale, panX, panY, racks, devicesByRack, linksTop, linksByRack})); }catch(e){} }
+function loadView(){ try{ const s=localStorage.getItem('nms_topo'); if(!s) return false; const o=JSON.parse(s); if(o.racks) racks.splice(0,racks.length,...o.racks); if(o.devicesByRack) { Object.keys(o.devicesByRack).forEach(k=>{ devicesByRack[k]=o.devicesByRack[k]; }); Object.keys(devicesByRack).forEach(k=>{ if(!o.devicesByRack[k]) {} }); } if(o.linksTop) { linksTop.splice(0,linksTop.length,...o.linksTop); } if(o.linksByRack) { Object.keys(o.linksByRack).forEach(k=>{ linksByRack[k]=o.linksByRack[k]; }); } if(o.scale) scale=o.scale; if(o.panX!=null) panX=o.panX; if(o.panY!=null) panY=o.panY; return true; }catch(e){ return false; } }
+function currentNodes(){ if(layer==='top') return racks; return devicesByRack[layer]||[]; }
+function currentLinks(){ if(layer==='top') return linksTop; return linksByRack[layer]||[]; }
+function setLayer(l){
+  layer=l;
+  document.getElementById('breadCur').textContent = l==='top'?'Rack View': (racks.find(r=>r.id===l)?.name || l);
+  document.getElementById('breadExtra').textContent = l==='top' ? '' : '• '+((devicesByRack[l]||[]).length+' perangkat');
+  document.getElementById('detail').textContent = l==='top'?'Top Layer — semua rack. Klik rack untuk drill-down.':'Layer '+(racks.find(r=>r.id===l)?.name||l)+' — klik device untuk aksi • Back ke Top untuk kembali.';
+  document.getElementById('sideChip').textContent = l==='top' ? `Top • ${racks.length} racks` : (racks.find(r=>r.id===l)?.name||l)+' • '+(devicesByRack[l]||[]).length+' dev';
+  selectedId=null;
+  // keep scale/pan per layer reset — optional but nicer to keep
+  applyTransform();
+  render();
+  refreshLinkSelects();
+  renderRackList();
+}
+function applyTransform(){ const vp=document.getElementById('viewport'); if(vp) vp.style.transform=`translate(${panX}px, ${panY}px) scale(${scale})`; const zl=document.getElementById('zoomLabel'); if(zl) zl.textContent=Math.round(scale*100)+'%'; const pl=document.getElementById('panLabel'); if(pl) pl.textContent=Math.round(panX)+','+Math.round(panY); }
+function zoomBy(d){ scale=Math.min(2.2, Math.max(0.55, scale+d)); applyTransform(); saveView(); }
+function resetView(){ scale=1; panX=0; panY=0; applyTransform(); saveView(); }
+function clampPan(){ /* keep at least some visible — soft clamp */ panX=Math.max(-800, Math.min(400, panX)); panY=Math.max(-600, Math.min(400, panY)); }
+function refreshLinkSelects(){
+  const nodes=currentNodes();
+  const opts='<option value="">Pilih…</option>'+nodes.map(n=>`<option value="${n.id}">${n.name}</option>`).join('');
+  ['linkFrom','linkTo','mFrom','mTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=opts; });
+}
+function renderRackList(){
+  const box=document.getElementById('rackList');
+  const nodes=currentNodes();
+  if(layer!=='top'){
+    box.innerHTML='<div class="empty">Layer perangkat — tambah device atau link di layer ini.</div>';
+    return;
+  }
+  box.innerHTML=racks.map(r=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer" onclick="setLayer('${r.id}')">
+      <span style="font-size:1rem">${r.icon||'🗄️'}</span>
+      <div style="flex:1;min-width:0"><b style="font-size:.82rem">${r.name}</b><div class="mut" style="font-size:.68rem">${r.cnt} • ${r.b}</div></div>
+      <span class="chip">Masuk →</span>
+    </div>
+  `).join('');
+}
+function addRack(){
+  const name=prompt('Nama rack baru — cth: Rack D');
+  if(!name) return;
+  const id='rack'+Date.now();
+  racks.push({id, x:80+Math.random()*320, y:90+Math.random()*180, name, cnt:'0 devices', b:'0 online', icon:'🗄️'});
+  devicesByRack[id]=[];
+  linksByRack[id]=[];
+  setLayer('top');
+}
+function addDevice(){
+  if(layer==='top'){ alert('Masuk ke rack dulu (klik rack), baru tambah device di dalamnya.'); return; }
+  const name=prompt('Nama device — cth: RB-03');
+  if(!name) return;
+  const ip=prompt('IP device — cth: 192.168.10.1')||'0.0.0.0';
+  const arr=devicesByRack[layer]||(devicesByRack[layer]=[]);
+  arr.push({id:'dev'+Date.now(), x:60+Math.random()*300, y:70+Math.random()*180, name, ip, icon:'🖥️'});
+  render(); refreshLinkSelects();
+}
+function openLinkModal(){ document.getElementById('linkModal').style.display='flex'; refreshLinkSelects(); }
+function closeLinkModal(){ document.getElementById('linkModal').style.display='none'; }
+function confirmLink(){
+  const a=document.getElementById('mFrom').value, b=document.getElementById('mTo').value;
+  const desc=document.getElementById('mDesc').value.trim()||'Link baru';
+  const bps=document.getElementById('mCap').value.trim()||'—';
+  if(!a||!b){ alert('Pilih Dari & Ke'); return; }
+  if(a===b){ alert('Dari & Ke tidak boleh sama'); return; }
+  const sensor=document.getElementById('mSensor').value;
+  const arr=currentLinks();
+  // count existing between same pair to set offset
+  const existing=arr.filter(e=> (e.a===a&&e.b===b)||(e.a===b&&e.b===a)).length;
+  arr.push({a,b,desc: sensor && sensor!=='Tanpa sensor' ? desc+' • '+sensor : desc, bps, off:existing});
+  closeLinkModal();
+  render();
+}
+function saveLink(){
+  const a=document.getElementById('linkFrom').value, b=document.getElementById('linkTo').value;
+  const desc=document.getElementById('linkDesc').value.trim()||'Link baru';
+  const cap=document.getElementById('linkCap').value.trim()||'—';
+  const sensor=document.getElementById('sensorPick').value;
+  if(!a||!b){ alert('Pilih Dari & Ke dulu'); return; }
+  if(a===b){ alert('Dari & Ke tidak boleh sama'); return; }
+  const arr=currentLinks();
+  const existing=arr.filter(e=> (e.a===a&&e.b===b)||(e.a===b&&e.b===a)).length;
+  arr.push({a,b,desc: sensor && sensor!=='Tanpa sensor' ? desc+' • '+sensor : desc, bps:cap, off:existing});
+  document.getElementById('linkDesc').value='';
+  document.getElementById('linkCap').value='';
+  render();
+}
+function showSelection(node){
+  selectedId=node.id;
+  const box=document.getElementById('selectionBox');
+  const title=document.getElementById('selTitle');
+  const meta=document.getElementById('selMeta');
+  const actions=document.getElementById('selActions');
+  box.style.display='block';
+  title.textContent=(node.icon||'')+' '+node.name;
+  meta.textContent=(node.ip? node.ip+' • ':'')+(node.cnt||'')+(node.b?' • '+node.b:'');
+  if(layer==='top'){
+    actions.innerHTML=`<button class="btn sm" onclick="setLayer('${node.id}')">Masuk →</button><button class="btn ghost sm" onclick="renameRack('${node.id}')">Rename</button>`;
+  } else {
+    actions.innerHTML=`<button class="btn sm" onclick="alert('Remote '+selectedId+' — bastion P1')">Remote</button><button class="btn ghost sm" onclick="editDevice('${node.id}')">Edit</button><button class="btn ghost sm" onclick="removeDevice('${node.id}')">Hapus</button>`;
+  }
+  document.getElementById('sideTitle').textContent=node.name;
+}
+function renameRack(id){
+  const r=racks.find(x=>x.id===id);
+  const name=prompt('Nama rack baru', r.name);
+  if(!name) return;
+  r.name=name;
+  render(); renderRackList();
+  document.getElementById('sideTitle').textContent=name;
+}
+function editDevice(id){
+  const arr=devicesByRack[layer]||[];
+  const d=arr.find(x=>x.id===id);
+  if(!d) return;
+  const name=prompt('Nama device', d.name);
+  if(name) d.name=name;
+  const ip=prompt('IP', d.ip);
+  if(ip!==null) d.ip=ip;
+  render();
+}
+function removeDevice(id){
+  if(!confirm('Hapus device ini?')) return;
+  devicesByRack[layer]=(devicesByRack[layer]||[]).filter(x=>x.id!==id);
+  // remove links involving it
+  linksByRack[layer]=(linksByRack[layer]||[]).filter(e=>e.a!==id && e.b!==id);
+  selectedId=null;
+  document.getElementById('selectionBox').style.display='none';
+  render(); refreshLinkSelects();
+}
+function render(){
+  const vp=document.getElementById('viewport');
+  const cv=document.getElementById('canvas');
+  vp.innerHTML='';
+  // hint hide after first interaction
+  if(panX!==0 || panY!==0 || scale!==1) cv.classList.remove('hint-pan');
+  const isTop = layer==='top';
+  const nodes = currentNodes();
+  const links = currentLinks();
+
+  // edges
+  links.forEach((e)=>{
+    const a=nodes.find(n=>n.id===e.a), b=nodes.find(n=>n.id===e.b);
+    if(!a||!b) return;
+    const ax=a.x+84, ay=a.y+30, bx=b.x+84, by=b.y+30;
+    const mx=(ax+bx)/2, my=(ay+by)/2;
+    const dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy), ang=Math.atan2(dy,dx)*180/Math.PI;
+    const off=(e.off - 0.15)*28;
+    const px=-Math.sin(ang*Math.PI/180)*off, py=Math.cos(ang*Math.PI/180)*off;
+    const isHL = e.bps && e.bps.toLowerCase().includes('gbps');
+    const el=document.createElement('div'); el.className='edge'+(isHL?' hl':'');
+    el.style.left=(ax+px)+'px'; el.style.top=(ay+py)+'px'; el.style.width=len+'px'; el.style.transform='rotate('+ang+'deg)';
+    vp.appendChild(el);
+    const lb=document.createElement('div'); lb.className='edge-label';
+    lb.style.left=(mx+px-70)+'px'; lb.style.top=(my+py-12)+'px';
+    const bpsClass = isHL ? 'bps' : '';
+    lb.innerHTML=`<span>${e.desc}</span> <span class="${bpsClass}">${e.bps}</span>`;
+    lb.title=e.desc+' • '+e.bps;
+    vp.appendChild(lb);
+  });
+
+  nodes.forEach(n=>{
+    const d=document.createElement('div');
+    d.className='node'+(isTop?' rack':'')+(selectedId===n.id?' selected':'');
+    d.style.left=n.x+'px'; d.style.top=n.y+'px';
+    const icon=n.icon||(isTop?'🗄️':'🖥️');
+    d.innerHTML=`
+      <div class="title"><span>${icon}</span> ${n.name}</div>
+      <div class="sub">${n.ip? `<span style="font-family:monospace;font-size:.7rem;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 7px">${n.ip}</span>`:''} ${n.cnt?`<span>${n.cnt}</span>`:''} ${n.b?`<span class="badge">${n.b}</span>`:''}</div>
+      <div class="hint">${isTop?'Masuk →':'Remote • Klik untuk aksi'}</div>
+    `;
+    d.onclick=()=>{
+      if(isTop){ showSelection(n); }
+      else { showSelection(n); }
+    };
+    d.ondblclick=()=>{
+      if(isTop) setLayer(n.id);
+      else alert('Remote '+n.name+' — bastion P1 (SSH/Telnet/MikroTik API/WebFig)');
+    };
+    vp.appendChild(d);
+  });
+
+  // hint empty
+  if(nodes.length===0){
+    const empty=document.createElement('div');
+    empty.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;color:var(--muted)';
+    empty.innerHTML=`<div style="font-size:1.6rem">🗺️</div><div style="font-weight:800;margin-top:6px">Belum ada ${isTop?'rack':'device'}</div><div style="font-size:.76rem;margin-top:4px">Klik + Rack / + Device untuk menambah</div>`;
+    vp.appendChild(empty);
+  }
+}
+// === PAN MAP (drag area kosong) ===
+(function setupPan(){
+  const cv=document.getElementById('canvas');
+  const vp=document.getElementById('viewport');
+  if(!cv||!vp) return;
+  function onDown(e){
+    if(e.target.closest('.node')) return; // node drag handled separately
+    if(e.target.closest('.zoom-bar')) return;
+    if(e.button!==0 && e.type==='mousedown') return;
+    const pt=e.touches?e.touches[0]:e;
+    isPanning=true;
+    panStartX=pt.clientX; panStartY=pt.clientY;
+    panOriginX=panX; panOriginY=panY;
+    cv.classList.add('grabbing');
+    cv.classList.remove('hint-pan');
+    e.preventDefault();
+  }
+  function onMove(e){
+    if(isPanning){
+      const pt=e.touches?e.touches[0]:e;
+      panX=panOriginX + (pt.clientX - panStartX);
+      panY=panOriginY + (pt.clientY - panStartY);
+      applyTransform();
+      if(e.cancelable) e.preventDefault();
+    } else if(dragNode){
+      const pt=e.touches?e.touches[0]:e;
+      const dx=(pt.clientX - dragOffX)/scale - dragNodeData._sx;
+      const dy=(pt.clientY - dragOffY)/scale - dragNodeData._sy;
+      if(!dragHasMoved && Math.hypot(pt.clientX - panStartX, pt.clientY - panStartY) < 4) return;
+      dragHasMoved=true;
+      dragNode.classList.add('dragging');
+      const nx=dragNodeData._ox + dx;
+      const ny=dragNodeData._oy + dy;
+      // clamp inside viewport bounds
+      dragNodeData.x=Math.max(0, Math.min(900, nx));
+      dragNodeData.y=Math.max(0, Math.min(600, ny));
+      dragNode.style.left=dragNodeData.x+'px';
+      dragNode.style.top=dragNodeData.y+'px';
+      // live update edges — re-render edges only (cheap: full render but without node recreation for now just re-render)
+      // update edge positions live by re-rendering edges layer
+      // simple: full render but keep drag
+      // to avoid flicker, just update edge positions via re-render of edges
+      // we do lightweight: move edges manually
+      renderEdgesLive();
+      if(e.cancelable) e.preventDefault();
+    }
+  }
+  function onUp(e){
+    if(isPanning){ isPanning=false; cv.classList.remove('grabbing'); saveView(); }
+    if(dragNode){
+      const wasMoved=dragHasMoved;
+      dragNode.classList.remove('dragging');
+      if(wasMoved){ saveView(); render(); }
+      dragNode=null; dragNodeData=null; dragHasMoved=false;
+    }
+  }
+  cv.addEventListener('mousedown', onDown);
+  cv.addEventListener('touchstart', onDown, {passive:false});
+  window.addEventListener('mousemove', onMove, {passive:false});
+  window.addEventListener('touchmove', onMove, {passive:false});
+  window.addEventListener('mouseup', onUp);
+  window.addEventListener('touchend', onUp);
+  cv.addEventListener('wheel', (e)=>{
+    if(e.ctrlKey || e.metaKey || true){
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.08 : 0.08;
+      const rect=cv.getBoundingClientRect();
+      const mx=e.clientX - rect.left;
+      const my=e.clientY - rect.top;
+      const old=scale;
+      scale=Math.min(2.2, Math.max(0.55, scale+delta));
+      // zoom towards cursor
+      const k=scale/old;
+      panX = mx - k*(mx - panX);
+      panY = my - k*(my - panY);
+      applyTransform();
+      saveView();
+    }
+  }, {passive:false});
+  // double-click canvas to reset
+  cv.addEventListener('dblclick', (e)=>{
+    if(e.target.closest('.node')) return;
+    resetView();
+  });
+})();
+
+// === DRAG NODE (geser perangkat/rack) ===
+function attachNodeDrag(el, data){
+  function down(e){
+    if(e.button!==0 && e.type==='mousedown') return;
+    const pt=e.touches?e.touches[0]:e;
+    dragNode=el;
+    dragNodeData=data;
+    data._ox=data.x; data._oy=data.y;
+    data._sx=pt.clientX/scale;
+    data._sy=pt.clientY/scale;
+    // store viewport offset at start
+    const rect=el.getBoundingClientRect();
+    // compute offset from pointer to node origin in viewport coords
+    dragOffX=pt.clientX - rect.left + (data.x*scale - rect.left + panX*scale)/scale*0; // simplified
+    // more precise: pointer in viewport coords
+    const vp=document.getElementById('viewport');
+    const cv=document.getElementById('canvas');
+    const cvRect=cv.getBoundingClientRect();
+    // pointer in viewport space
+    const px=(pt.clientX - cvRect.left - panX*scale)/scale;
+    const py=(pt.clientY - cvRect.top - panY*scale)/scale;
+    dragOffX=pt.clientX - (px - data.x)*scale - cvRect.left - panX*scale;
+    // Instead simpler: track delta from start pointer
+    dragOffX=pt.clientX;
+    dragOffY=pt.clientY;
+    data._sx=0; data._sy=0;
+    dragNodeData._ox=data.x; dragNodeData._oy=data.y;
+    panStartX=pt.clientX; panStartY=pt.clientY;
+    dragHasMoved=false;
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  el.addEventListener('mousedown', down);
+  el.addEventListener('touchstart', down, {passive:false});
+}
+
+// live edge update without full re-render (for smoothness while dragging)
+function renderEdgesLive(){
+  const vp=document.getElementById('viewport');
+  if(!vp || !dragNodeData) return;
+  // we reuse render() for correctness on mouseup; during drag just move
+  // quick path: update all edges' positions
+  const nodes=currentNodes();
+  const links=currentLinks();
+  const edges=vp.querySelectorAll('.edge');
+  const labels=vp.querySelectorAll('.edge-label');
+  // map links to dom by index — we re-create mapping each drag frame simpler to just re-render edges
+  // For now, brute re-render edges only
+  // Remove old edges/labels
+  edges.forEach(e=>e.remove());
+  labels.forEach(e=>e.remove());
+  // re-insert edges at correct z
+  links.forEach((e)=>{
+    const a=nodes.find(n=>n.id===e.a), b=nodes.find(n=>n.id===e.b);
+    if(!a||!b) return;
+    const ax=a.x+84, ay=a.y+30, bx=b.x+84, by=b.y+30;
+    const mx=(ax+bx)/2, my=(ay+by)/2;
+    const dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy), ang=Math.atan2(dy,dx)*180/Math.PI;
+    const off=(e.off - 0.15)*28;
+    const px=-Math.sin(ang*Math.PI/180)*off, py=Math.cos(ang*Math.PI/180)*off;
+    const isHL = e.bps && e.bps.toLowerCase().includes('gbps');
+    const el=document.createElement('div'); el.className='edge'+(isHL?' hl':'');
+    el.style.left=(ax+px)+'px'; el.style.top=(ay+py)+'px'; el.style.width=len+'px'; el.style.transform='rotate('+ang+'deg)';
+    vp.insertBefore(el, vp.firstChild);
+    const lb=document.createElement('div'); lb.className='edge-label';
+    lb.style.left=(mx+px-70)+'px'; lb.style.top=(my+py-12)+'px';
+    lb.innerHTML=`<span>${e.desc}</span> <span class="${isHL?'bps':''}">${e.bps}</span>`;
+    vp.insertBefore(lb, vp.firstChild);
+  });
+}
+
+// patch render to attach drag
+const _origRender=render;
+render=function(){
+  _origRender();
+  // attach drag handlers
+  const nodes=currentNodes();
+  const vp=document.getElementById('viewport');
+  vp.querySelectorAll('.node').forEach((el,idx)=>{
+    const data=nodes[idx];
+    if(data) attachNodeDrag(el, data);
+  });
+  applyTransform();
+};
+
+// try load persisted view
+if(loadView()){ applyTransform(); }
+setLayer('top');
+
+// --- NMS v0.4 backend topology sync ---
+(function topoSync(){
+  function hdr(){ var t=localStorage.getItem('nms_token'); var h={}; if(t) h['Authorization']='Bearer '+t; return h; }
+  fetch('/api/topology?layer=top',{headers: hdr()}).then(r=>r.ok?r.json():null).then(d=>{
+    if(!d) return;
+    console.log('[NMS] topology top', d);
+    // don't override localStorage nms_topo if user already moved nodes; just stash
+    window.NMS_TOPO=d;
+  }).catch(()=>{});
+})();
+
+</script>
+</body>
+</html>

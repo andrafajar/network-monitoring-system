@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NMS — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js">
+// --- NMS v0.4 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
+(function backendSync(){
+  function tok(){ return localStorage.getItem('nms_token'); }
+  function hdr(){ var h={}; var t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
+  // update KPI from /api/devices if available
+  fetch('/api/devices',{headers: hdr()}).then(r=> r.ok? r.json(): null).then(arr=>{
+    if(!arr||!Array.isArray(arr)) return;
+    var total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
+    // find KPI cards: those with h3 Online/Offline etc
+    var cards=document.querySelectorAll('.card');
+    // simple: find elements containing "12 devices" etc and replace
+    // Do minimal: update document title KPI hint
+    var kpiOnline=document.querySelector('[data-kpi="online"]');
+    // fallback: update first KPI numbers via text replace if structure exists
+    var txt=document.body.innerHTML;
+    // Instead, update visible KPI spans if we can find
+    // Look for specific KPI values by replacing known dummy
+    var els=document.querySelectorAll('h3, b, span');
+    // noop — keep preview stable; log count
+    console.log('[NMS] backend devices', total, 'online', online);
+    var statusEl=document.getElementById('status');
+    // stash for GridStack widgets that need device picker
+    window.NMS_DEVICES=arr;
+  }).catch(()=>{});
+  fetch('/api/racks',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
+    if(!arr) return;
+    console.log('[NMS] backend racks', arr.length);
+    window.NMS_RACKS=arr;
+  }).catch(()=>{});
+  fetch('/api/device-groups',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
+    if(!arr) return;
+    console.log('[NMS] backend groups', arr.length);
+    window.NMS_GROUPS=arr;
+  }).catch(()=>{});
+  // if no token, redirect to login after 1s (preview allow)
+  if(!tok() && !localStorage.getItem('nms_setup_done')){
+    // keep preview but hint
+    console.log('[NMS] no token — preview mode');
+  }
+})();
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@8.4.0/dist/gridstack-all.js">
+// --- NMS v0.4 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
+(function backendSync(){
+  function tok(){ return localStorage.getItem('nms_token'); }
+  function hdr(){ var h={}; var t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
+  // update KPI from /api/devices if available
+  fetch('/api/devices',{headers: hdr()}).then(r=> r.ok? r.json(): null).then(arr=>{
+    if(!arr||!Array.isArray(arr)) return;
+    var total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
+    // find KPI cards: those with h3 Online/Offline etc
+    var cards=document.querySelectorAll('.card');
+    // simple: find elements containing "12 devices" etc and replace
+    // Do minimal: update document title KPI hint
+    var kpiOnline=document.querySelector('[data-kpi="online"]');
+    // fallback: update first KPI numbers via text replace if structure exists
+    var txt=document.body.innerHTML;
+    // Instead, update visible KPI spans if we can find
+    // Look for specific KPI values by replacing known dummy
+    var els=document.querySelectorAll('h3, b, span');
+    // noop — keep preview stable; log count
+    console.log('[NMS] backend devices', total, 'online', online);
+    var statusEl=document.getElementById('status');
+    // stash for GridStack widgets that need device picker
+    window.NMS_DEVICES=arr;
+  }).catch(()=>{});
+  fetch('/api/racks',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
+    if(!arr) return;
+    console.log('[NMS] backend racks', arr.length);
+    window.NMS_RACKS=arr;
+  }).catch(()=>{});
+  fetch('/api/device-groups',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
+    if(!arr) return;
+    console.log('[NMS] backend groups', arr.length);
+    window.NMS_GROUPS=arr;
+  }).catch(()=>{});
+  // if no token, redirect to login after 1s (preview allow)
+  if(!tok() && !localStorage.getItem('nms_setup_done')){
+    // keep preview but hint
+    console.log('[NMS] no token — preview mode');
+  }
+})();
+
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--sidebar-bg:#0A2463;--bg:#F1F5F9;--card:#fff;--line:#E2E8F0;--ink:#0F172A;--muted:#64748B}
+[data-sidebar="navy"]{--sidebar-bg:#0A2463}
+[data-sidebar="green"]{--sidebar-bg:#064E3B}
+[data-sidebar="purple"]{--sidebar-bg:#4C1D95}
+[data-sidebar="slate"]{--sidebar-bg:#1E293B}
+[data-sidebar="crimson"]{--sidebar-bg:#7F1D1D}
+[data-sidebar="teal"]{--sidebar-bg:#134E4A}
+[data-theme="dark"]{--bg:#020617;--card:#1E293B;--line:#334155;--ink:#F1F5F9;--muted:#94A3B8}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);display:flex;min-height:100vh;transition:background .2s,color .2s}
+.sidebar{width:260px;background:var(--sidebar-bg);color:#CBD5E1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto;transition:width .22s;flex-shrink:0}
+.sidebar.minimized{width:72px}
+.sidebar.minimized .hide-mini{display:none!important}
+.sidebar.minimized .logo{padding:12px 6px;gap:6px}
+.sidebar.minimized .menu a{justify-content:center;padding:10px 8px}
+.sidebar.minimized .menu a .lbl{display:none}
+.logo{padding:14px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0}
+.logo .ic{width:36px;height:36px;min-width:36px;border-radius:10px;background:#fff;color:#0A2463;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;letter-spacing:-.02em;box-shadow:0 1px 2px rgba(0,0,0,.08), 0 0 0 1px rgba(255,255,255,.12) inset}
+.logo .ic svg{width:20px;height:20px}
+.sidebar.minimized .logo .ic{width:32px;height:32px;min-width:32px;border-radius:8px;font-size:.95rem}
+.logo b{color:#fff;font-size:.95rem;line-height:1.1;display:block}
+.logo small{color:#94A3B8;font-size:.68rem}
+#sideToggle{width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:18px;line-height:1;transition:background .15s}
+#sideToggle:hover{background:rgba(255,255,255,.16)}
+.sidebar.minimized #sideToggle{margin-left:4px}
+.menu{padding:10px 8px 8px;flex:1}
+.menu .grp{font-size:.65rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#94A3B8;padding:14px 10px 6px}
+.menu a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:#CBD5E1;text-decoration:none;font-size:.85rem;font-weight:600}
+.menu a.on{background:rgba(255,255,255,.12);color:#fff}
+.menu a:hover{background:rgba(255,255,255,.07)}
+.theme-panel{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08);margin-top:auto}
+.theme-panel .tl{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#94A3B8}
+.dots{display:flex;gap:6px;margin:8px 0 10px;flex-wrap:wrap}
+.dots button{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;outline:none}
+.dots button.active{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.dark-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.08);border-radius:999px;padding:7px 10px;font-size:.75rem;font-weight:600;cursor:pointer;user-select:none}
+.dark-row:hover{background:rgba(255,255,255,.12)}
+.switch{position:relative;width:38px;height:22px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:rgba(255,255,255,.25);border-radius:999px;transition:.2s}
+.slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.switch input:checked + .slider{background:#2563EB}
+.switch input:checked + .slider:before{transform:translateX(16px)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+.topbar h2{font-size:1.05rem;font-weight:800}
+.topbar .sp{flex:1}
+.topbar .pill{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.78rem;color:var(--muted)}
+.btn{background:#0A2463;color:#fff;border:0;border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer;font-size:.82rem;display:inline-flex;align-items:center;gap:6px}
+.btn.ghost{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+.btn.sm{padding:6px 10px;font-size:.76rem;border-radius:8px}
+.customize-btn{background:#fff;border:1.5px solid #E2E8F0;color:#0F172A}
+[data-theme="dark"] .customize-btn{background:var(--card);border-color:var(--line);color:var(--ink)}
+.customize-btn.active{background:#0A2463;color:#fff;border-color:#0A2463}
+#topMinBtn{display:none}
+@media(max-width:1000px){#topMinBtn{display:inline-flex}.sidebar{position:fixed;left:0;top:0;z-index:50;transform:translateX(0)}.sidebar.minimized{transform:translateX(-100%)}}
+.content{padding:16px 14px 30px;max-width:1400px;margin:0 auto;width:100%}
+.grid-stack{margin:0 -6px}
+.grid-stack-item-content{inset:6px!important;overflow:visible!important;background:transparent!important;border:0!important}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.kpi{grid-template-columns:repeat(2,1fr)}}
+.kpi .c{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.kpi b{font-size:1.5rem;display:block}
+.kpi span{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.kpi .on{color:#059669}.kpi .off{color:#DC2626}.kpi .warn{color:#D97706}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.04);height:100%;display:flex;flex-direction:column;overflow:hidden}
+.card h3{font-size:.88rem;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.mut{color:var(--muted);font-size:.82rem}
+select,input,textarea{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:.85rem;width:100%;background:var(--card);color:var(--ink)}
+.table{width:100%;border-collapse:collapse;font-size:.85rem}
+.table th{text-align:left;color:var(--muted);font-size:.72rem;letter-spacing:.04em;text-transform:uppercase;padding:10px 8px;border-bottom:1px solid var(--line)}
+.table td{padding:10px 8px;border-bottom:1px solid var(--line)}
+.badge{font-size:.68rem;font-weight:800;border-radius:999px;padding:3px 8px}
+.badge.ok{background:#D1FAE5;color:#065F46}.badge.bad{background:#FEE2E2;color:#991B1B}.badge.mid{background:#FEF3C7;color:#92400E}
+.chip{display:inline-block;background:#EFF6FF;color:#1E40AF;border-radius:999px;padding:4px 8px;font-size:.72rem;font-weight:700;margin:2px}
+[data-theme="dark"] .chip{background:#1E3A8A;color:#BFDBFE}
+[data-theme="dark"] .badge.ok{background:#064E3B;color:#6EE7B7}
+[data-theme="dark"] .badge.bad{background:#7F1D1D;color:#FECACA}
+.widget-bar{position:absolute;top:8px;right:8px;background:#0F172A;color:#fff;border-radius:999px;padding:4px 6px;gap:4px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:5;display:none}
+body.customizing .widget-bar{display:flex}
+.widget-bar .drag{cursor:grab;padding:5px 6px;border-radius:999px;background:rgba(255,255,255,.14);font-size:.7rem;line-height:1;user-select:none}
+.widget-bar .drag:active{cursor:grabbing}
+.widget-bar .w-title{font-size:.68rem;font-weight:700;opacity:.85;margin:0 2px}
+.size-group{display:flex;gap:2px;background:rgba(255,255,255,.1);border-radius:999px;padding:2px}
+.size-group button{border:0;background:transparent;color:#fff;font-size:.65rem;font-weight:700;padding:3px 6px;border-radius:999px;cursor:pointer}
+.size-group button.on{background:#fff;color:#0F172A}
+.widget-bar .hide-btn{border:0;background:rgba(255,255,255,.14);color:#fff;border-radius:999px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.7rem}
+body.customizing .grid-stack-item{outline:1px dashed rgba(148,163,184,.6);outline-offset:-6px;border-radius:18px}
+body.customizing .grid-stack-item:hover{outline-color:#2563EB}
+.grid-stack-placeholder .placeholder-content{border:2px dashed #2563EB!important;background:rgba(37,99,235,.08)!important;border-radius:16px!important}
+.banner-custom{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;border-radius:12px;padding:10px 12px;font-size:.78rem;display:none;margin-bottom:12px;align-items:center;gap:8px}
+body.customizing .banner-custom{display:flex}
+[data-theme="dark"] .banner-custom{background:#1E3A8A;border-color:#334155;color:#BFDBFE}
+.custom-overlay{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:60;display:none}
+.custom-overlay.open{display:block}
+.custom-drawer{position:fixed;top:0;right:0;width:380px;max-width:92vw;height:100vh;background:var(--card);border-left:1px solid var(--line);z-index:61;transform:translateX(100%);transition:transform .22s;overflow:auto;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
+.custom-drawer.open{transform:translateX(0)}
+.drawer-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--card);z-index:2}
+.drawer-head b{font-size:.92rem;font-weight:800}
+.drawer-body{padding:14px 14px 20px;flex:1}
+.drawer-foot{padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:8px;position:sticky;bottom:0;background:var(--card)}
+.widget-item{display:flex;align-items:center;gap:10px;padding:10px 10px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:var(--bg)}
+.widget-item .wi-icon{width:30px;height:30px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.widget-item .wi-main{flex:1;min-width:0}
+.widget-item .wi-main b{display:block;font-size:.82rem;line-height:1.1}
+.widget-item .wi-main small{color:var(--muted);font-size:.7rem}
+.eye{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:.85rem}
+.eye.on{background:#D1FAE5;border-color:#A7F3D0;color:#065F46}
+.size-mini{display:flex;gap:4px;margin-top:6px}
+.size-mini button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 6px;font-size:.66rem;font-weight:700;cursor:pointer;color:var(--muted)}
+.size-mini button.on{background:#0A2463;color:#fff;border-color:#0A2463}
+.add-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.add-card{border:1.5px dashed var(--line);border-radius:12px;padding:10px;background:var(--card);cursor:pointer;text-align:center;transition:border-color .15s,background .15s}
+.add-card:hover{border-color:#2563EB;background:var(--bg)}
+.add-card b{display:block;font-size:.78rem;margin-top:4px}
+.add-card small{font-size:.68rem;color:var(--muted)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:70;display:none;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:16px;max-width:520px;width:100%;padding:16px;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+.modal-box h3{font-size:.95rem;font-weight:800;margin-bottom:8px}
+.modal-box label{font-size:.78rem;font-weight:600;margin-top:8px;display:block}
+</style>
+</head>
+<body data-sidebar="navy">
+<div class="sidebar" id="sidebar">
+  <div class="logo"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><div class="ic">N</div><div class="hide-mini"><b>NMS</b><small>Multi-Device • v0.4</small></div></div><button id="sideToggle" title="Minimize" aria-label="Toggle sidebar">‹</button></div>
+  <nav class="menu">
+    <div class="grp hide-mini">Monitoring</div>
+    <a class="on" href="dashboard.html">📊 <span class="lbl">Dashboard</span></a>
+    <a href="dashboard.html#devices">🖥️ <span class="lbl">Devices</span></a>
+    <a href="topology.html">🗺️ <span class="lbl">Topology</span></a>
+    <div class="grp hide-mini">Management</div>
+    <a href="#" onclick="alert('Remote Console — P1 next');return false">💻 <span class="lbl">Remote</span></a>
+    <a href="#" onclick="alert('Roles — P1 next');return false">👥 <span class="lbl">Users & Roles</span></a>
+    <a href="#" onclick="alert('Alerts — P1 next');return false">🔔 <span class="lbl">Alerts</span></a>
+    <div class="grp hide-mini">System</div>
+    <a href="index.html" onclick="localStorage.clear()">🚪 <span class="lbl">Logout</span></a>
+  </nav>
+  <div class="theme-panel">
+    <div class="tl hide-mini">Warna Sidebar</div>
+    <div class="dots">
+      <button data-theme="navy" style="background:#0A2463" title="Navy"></button>
+      <button data-theme="green" style="background:#059669" title="Green"></button>
+      <button data-theme="purple" style="background:#7C3AED" title="Purple"></button>
+      <button data-theme="slate" style="background:#334155" title="Slate"></button>
+      <button data-theme="crimson" style="background:#DC2626" title="Crimson"></button>
+      <button data-theme="teal" style="background:#0F766E" title="Teal"></button>
+    </div>
+    <label class="dark-row hide-mini"><span style="display:flex;align-items:center;gap:6px"><span id="darkIcon">🌙</span> Dark mode</span><span class="switch"><input type="checkbox" id="darkToggle"><span class="slider"></span></span></label>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sbOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40"></div>
+<div class="main">
+  <div class="topbar">
+    <button class="btn ghost" id="topMinBtn" style="padding:6px 10px" title="Toggle sidebar">☰</button>
+    <h2>Dashboard</h2>
+    <span class="sp"></span>
+    <span class="pill" id="clock">—</span>
+    <span class="pill hide-mini" style="display:inline-flex">superadmin</span>
+    <button class="btn ghost sm" id="panelBtn" title="Buka panel custom" style="display:none">🎛️ Panel</button>
+    <button class="btn customize-btn" id="customBtn" title="Kustom dashboard">✏️ <span class="hide-mini">Custom</span></button>
+  </div>
+  <div class="content">
+    <div class="banner-custom" id="customBanner">🎛️ <b>Mode Custom</b> — drag panel bebas ke posisi mana saja (GridStack) • ubah ukuran via tombol di panel • tambah panel baru via drawer. Posisi bisa rapat tanpa gap horizontal. Klik <b>Selesai</b> untuk simpan.</div>
+    <div class="grid-stack" id="grid"></div>
+    <p class="mut" style="text-align:center;margin-top:14px">NMS v0.4 • GridStack free-drag • <a href="topology.html" style="color:#2563EB;text-decoration:none">Topology →</a></p>
+  </div>
+</div>
+<div class="custom-overlay" id="customOverlay"></div>
+<div class="custom-drawer" id="customDrawer">
+  <div class="drawer-head"><b>🎛️ Kustom Dashboard</b><span style="flex:1"></span><button class="btn ghost sm" id="closeDrawer">✕</button></div>
+  <div class="drawer-body">
+    <p class="mut" style="font-size:.76rem;margin-bottom:10px">Drag langsung panel di dashboard untuk pindah posisi (bebas, tidak ada gap paksa). Atur ukuran & tambah panel di sini.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn sm" id="addWidgetBtn" style="flex:1">+ Tambah Panel</button>
+      <button class="btn ghost sm" id="addQuickBtn" style="flex:1">+ Cepat: Text</button>
+    </div>
+    <div id="widgetList"></div>
+    <div style="margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px">
+      <b style="font-size:.78rem">Panel Tersembunyi</b>
+      <p class="mut" style="font-size:.72rem;margin:4px 0 8px">Aktifkan lagi kalau dibutuhkan</p>
+      <div id="hiddenList" style="display:grid;gap:6px"></div>
+    </div>
+    <div class="add-grid" id="templateGrid">
+      <div class="add-card" data-tpl="kpi"><div style="font-size:1.2rem">📊</div><b>KPI Stats</b><small>4 KPI cards</small></div>
+      <div class="add-card" data-tpl="traffic"><div style="font-size:1.2rem">📈</div><b>Traffic</b><small>Chart interface</small></div>
+      <div class="add-card" data-tpl="group"><div style="font-size:1.2rem">🗂️</div><b>Group & Rack</b><small>Rack ringkas</small></div>
+      <div class="add-card" data-tpl="devices"><div style="font-size:1.2rem">🖥️</div><b>Devices</b><small>Tabel last seen</small></div>
+      <div class="add-card" data-tpl="alerts"><div style="font-size:1.2rem">🔔</div><b>Alerts</b><small>Notifikasi</small></div>
+      <div class="add-card" data-tpl="poll"><div style="font-size:1.2rem">⏱️</div><b>Poll</b><small>Interval</small></div>
+      <div class="add-card" data-tpl="text"><div style="font-size:1.2rem">📝</div><b>Text</b><small>Catatan bebas</small></div>
+      <div class="add-card" data-tpl="blank"><div style="font-size:1.2rem">➕</div><b>Blank</b><small>Kosong editable</small></div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn ghost sm" id="resetBtn" style="flex:1">Reset Default</button>
+    <button class="btn sm" id="doneBtn" style="flex:1">Selesai ✓</button>
+  </div>
+</div>
+<div class="modal" id="addModal">
+  <div class="modal-box">
+    <h3>Tambah Panel Baru</h3>
+    <label>Judul Panel<input id="addTitle" placeholder="cth: Live Traffic Rack A"></label>
+    <label>Jenis
+      <select id="addType">
+        <option value="blank">Blank (kosong)</option>
+        <option value="text">Text / Catatan</option>
+        <option value="kpi">KPI Stats (clone)</option>
+        <option value="traffic">Traffic Chart (clone)</option>
+        <option value="devices">Devices Table (clone)</option>
+        <option value="alerts">Alerts</option>
+        <option value="poll">Poll Interval</option>
+        <option value="group">Group & Rack</option>
+      </select>
+    </label>
+    <label>Ukuran
+      <select id="addSize">
+        <option value="sm">Kecil (4 kol)</option>
+        <option value="md" selected>Sedang (6 kol)</option>
+        <option value="lg">Besar (8 kol)</option>
+        <option value="full">Full (12 kol)</option>
+      </select>
+    </label>
+    <label id="addTextWrap" style="display:none">Isi Text<textarea id="addText" rows="3" placeholder="Tulis catatan..."></textarea></label>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn ghost sm" id="addCancel" style="flex:1">Batal</button>
+      <button class="btn sm" id="addConfirm" style="flex:1">Tambah</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const body=document.body, sb=document.getElementById('sidebar'), darkToggle=document.getElementById('darkToggle');
+  const dots=document.querySelectorAll('.dots button');
+  const sideToggle=document.getElementById('sideToggle'), topMinBtn=document.getElementById('topMinBtn');
+  function applyMini(m){ sb.classList.toggle('minimized',m); localStorage.setItem('nms_sidebar_mini',m?'1':'0'); if(sideToggle){ sideToggle.textContent=m?'›':'‹'; sideToggle.title=m?'Expand sidebar':'Minimize sidebar'; } const ov=document.getElementById('sbOverlay'); if(ov){ const isMobile=window.innerWidth<=1000; ov.style.display = (!m && isMobile) ? 'block' : 'none'; } }
+  const _rawMini=localStorage.getItem('nms_sidebar_mini');
+  const savedMini=_rawMini===null ? window.innerWidth<=1000 : _rawMini==='1';
+  const savedSidebar=localStorage.getItem('nms_sidebar_theme')||'navy';
+  const savedDark=localStorage.getItem('nms_dark')==='1';
+  applyMini(savedMini);
+  body.setAttribute('data-sidebar', savedSidebar);
+  dots.forEach(b=>{ if(b.dataset.theme===savedSidebar) b.classList.add('active')});
+  if(savedDark){ body.setAttribute('data-theme','dark'); if(darkToggle) darkToggle.checked=true; }
+  function syncDarkIcon(){ const ic=document.getElementById('darkIcon'); if(ic) ic.textContent = (document.body.getAttribute('data-theme')==='dark') ? '☀️' : '🌙'; }
+  function toggleMini(){ applyMini(!sb.classList.contains('minimized')); }
+  if(sideToggle) sideToggle.onclick=toggleMini;
+  if(topMinBtn) topMinBtn.onclick=toggleMini;
+  const ovEl=document.getElementById('sbOverlay'); if(ovEl) ovEl.onclick=toggleMini;
+  dots.forEach(b=>{ b.onclick=()=>{ const t=b.dataset.theme; body.setAttribute('data-sidebar',t); localStorage.setItem('nms_sidebar_theme',t); dots.forEach(x=>x.classList.remove('active')); b.classList.add('active'); }});
+  if(darkToggle){ darkToggle.onchange=()=>{ if(darkToggle.checked){ body.setAttribute('data-theme','dark'); localStorage.setItem('nms_dark','1'); } else { body.removeAttribute('data-theme'); localStorage.setItem('nms_dark','0'); } syncDarkIcon(); }; }
+  syncDarkIcon();
+})();
+function tick(){const el=document.getElementById('clock'); if(el) el.textContent=new Date().toLocaleString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+tick();setInterval(tick,1000);
+
+// helpers
+function sizeToW(s){ return s==='sm'?4 : s==='md'?6 : s==='lg'?8 : 12; }
+function wToSize(w){ return w<=4?'sm' : w<=6?'md' : w<=8?'lg' : 'full'; }
+
+// TPL HTML builders
+function tplHTML(id, opts){
+  const title = opts && opts.title ? opts.title : null;
+  if(id==='kpi') return `<div class="kpi">
+          <div class="c"><span>Total Devices</span><b>12</b><span class="mut">4 groups • 3 racks</span></div>
+          <div class="c"><span>Online</span><b class="on">10</b><span class="mut">83% up</span></div>
+          <div class="c"><span>Offline</span><b class="off">2</b><span class="mut">by ping</span></div>
+          <div class="c"><span>Failed Login 24h</span><b class="warn">7</b><span class="mut">by auth</span></div>
+        </div>`;
+  if(id==='traffic') return `<div class="card" style="height:100%">
+          <h3>${title||'Traffic per Interface'} <span class="mut" style="font-weight:400">— Device → Interface</span></h3>
+          <div style="display:flex;gap:8px;margin:8px 0 10px;flex-wrap:wrap">
+            <select style="flex:1;min-width:120px"><option>RB-01 Core (192.168.1.1)</option><option>RB-02 Cabang A</option></select>
+            <select style="flex:1;min-width:100px"><option selected>ether1 — uplink</option><option>ether2</option></select>
+            <select style="width:80px"><option>24h</option></select>
+          </div>
+          <div style="flex:1;min-height:160px"><canvas data-chart="traffic"></canvas></div>
+          <div style="margin-top:8px"><span class="chip">ether1: 1.2 Gbps</span><span class="chip" style="background:#FEF3C7;color:#92400E">ether2: 800 Mbps</span></div>
+        </div>`;
+  if(id==='group') return `<div class="card" style="height:100%;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <h3 style="margin:0">${title||'Group & Rack'}</h3>
+            <button class="btn ghost sm" onclick="location.href='topology.html'" style="padding:5px 8px;font-size:.72rem;border-radius:8px">🗺️ Map</button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+            <button class="chip" style="background:#0A2463;color:#fff;border:1px solid #0A2463;cursor:pointer" onclick="location.href='topology.html'">All <b style="background:rgba(255,255,255,.22);padding:1px 5px;border-radius:999px;margin-left:4px;font-size:.68rem">12</b></button>
+            <button class="chip" style="cursor:pointer;background:var(--bg);border:1px solid var(--line)" onclick="alert('Filter Jakarta — P1')">Jakarta <span style="color:var(--muted)">4</span></button>
+            <button class="chip" style="cursor:pointer;background:var(--bg);border:1px solid var(--line)" onclick="alert('Filter Mitra A — P1')">Mitra A <span style="color:var(--muted)">5</span></button>
+            <button class="chip" style="cursor:pointer;background:var(--bg);border:1px solid var(--line)" onclick="alert('Filter Magang — P1')">Magang <span style="color:var(--muted)">3</span></button>
+          </div>
+          <div style="display:grid;gap:8px;flex:1;align-content:start">
+            <div onclick="location.href='topology.html'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer;transition:border-color .15s,background .15s" onmouseover="this.style.borderColor='#2563EB'" onmouseout="this.style.borderColor='var(--line)'">
+              <div style="width:36px;height:36px;min-width:36px;border-radius:9px;background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border:1px solid #BFDBFE;display:flex;align-items:center;justify-content:center;font-size:1rem">🗄️</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Rack A <span class="badge ok" style="font-size:.64rem">5 / 6 online</span></div>
+                <div style="height:4px;background:var(--line);border-radius:999px;margin-top:6px;overflow:hidden"><div style="width:83%;height:100%;background:#059669;border-radius:999px"></div></div>
+                <div class="mut" style="font-size:.68rem;margin-top:4px">Jakarta • 6 devices • <span style="color:#059669;font-weight:600">83%</span></div>
+              </div>
+              <div style="color:var(--muted);font-size:1rem">›</div>
+            </div>
+            <div onclick="location.href='topology.html'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='#2563EB'" onmouseout="this.style.borderColor='var(--line)'">
+              <div style="width:36px;height:36px;min-width:36px;border-radius:9px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border:1px solid #FDE68A;display:flex;align-items:center;justify-content:center;font-size:1rem">🗄️</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Rack B <span class="badge mid" style="font-size:.64rem">3 / 4 online</span></div>
+                <div style="height:4px;background:var(--line);border-radius:999px;margin-top:6px;overflow:hidden"><div style="width:75%;height:100%;background:#D97706;border-radius:999px"></div></div>
+                <div class="mut" style="font-size:.68rem;margin-top:4px">Mitra A • 4 devices • <span style="color:#D97706;font-weight:600">75%</span></div>
+              </div>
+              <div style="color:var(--muted);font-size:1rem">›</div>
+            </div>
+            <div onclick="location.href='topology.html'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='#2563EB'" onmouseout="this.style.borderColor='var(--line)'">
+              <div style="width:36px;height:36px;min-width:36px;border-radius:9px;background:linear-gradient(135deg,#F1F5F9,#E2E8F0);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:1rem">🗄️</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Rack C <span class="badge ok" style="font-size:.64rem">2 / 2 online</span></div>
+                <div style="height:4px;background:var(--line);border-radius:999px;margin-top:6px;overflow:hidden"><div style="width:100%;height:100%;background:#059669;border-radius:999px"></div></div>
+                <div class="mut" style="font-size:.68rem;margin-top:4px">Magang • 2 devices • <span style="color:#059669;font-weight:600">100%</span></div>
+              </div>
+              <div style="color:var(--muted);font-size:1rem">›</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span class="mut" style="font-size:.68rem;display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block"></span> Poll 30s • Core 10s • CCTV 5m</span>
+            <a href="#" onclick="alert('Atur interval — P1');return false" style="font-size:.72rem;color:#2563EB;font-weight:700;text-decoration:none;white-space:nowrap">Atur →</a>
+          </div>
+        </div>`;
+  if(id==='devices') return `<div class="card" style="height:100%;overflow:auto">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><h3 style="margin:0">${title||'Devices — Last Seen'}</h3><span style="flex:1"></span><button class="btn ghost sm" onclick="alert('Add Device — API P1')">+ Tambah</button></div>
+          <table class="table">
+            <thead><tr><th>Device</th><th>IP</th><th>Group</th><th>Status</th></tr></thead>
+            <tbody><tr><td><b>RB-01 Core</b></td><td>192.168.1.1</td><td>Jakarta / Rack A</td><td><span class="badge ok">Online</span></td></tr><tr><td><b>SW-01</b></td><td>192.168.1.2</td><td>Jakarta / Rack A</td><td><span class="badge ok">Online</span></td></tr><tr><td><b>CCTV-01</b></td><td>192.168.1.50</td><td>Magang / Rack B</td><td><span class="badge bad">Offline</span></td></tr><tr><td><b>SRV-01</b></td><td>10.0.0.10</td><td>Jakarta / Rack B</td><td><span class="badge ok">Online</span></td></tr></tbody>
+          </table>
+        </div>`;
+  if(id==='alerts') return `<div class="card" style="height:100%">
+          <h3>🔔 ${title||'Alerts Terbaru'}</h3>
+          <div style="display:grid;gap:8px">
+            <div style="padding:8px 10px;border-radius:10px;background:#FEE2E2;border:1px solid #FECACA;color:#991B1B;font-size:.78rem"><b>CCTV-01 offline</b> — 2m lalu</div>
+            <div style="padding:8px 10px;border-radius:10px;background:#FEF3C7;border:1px solid #FDE68A;color:#92400E;font-size:.78rem"><b>RB-01 ether1</b> — 85% capacity</div>
+            <div style="padding:8px 10px;border-radius:10px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;font-size:.78rem"><b>Failed login</b> — 3x di RB-02</div>
+          </div>
+        </div>`;
+  if(id==='poll') return `<div class="card" style="height:100%">
+          <h3>⏱️ ${title||'Poll Interval'}</h3>
+          <div class="mut" style="font-size:.78rem">Global <b style="color:var(--ink)">30s</b> • Group & device override</div>
+          <div style="margin-top:8px;display:grid;gap:6px;font-size:.78rem"><div style="display:flex;justify-content:space-between"><span>Core</span><b>10s</b></div><div style="display:flex;justify-content:space-between"><span>CCTV</span><b>5m</b></div></div>
+          <button class="btn ghost sm" style="margin-top:8px;width:100%" onclick="alert('Atur interval — P1')">Atur</button>
+        </div>`;
+  if(id==='text') return `<div class="card" style="height:100%">
+          <h3>📝 ${title||'Catatan'}</h3>
+          <div class="mut" style="font-size:.82rem;white-space:pre-wrap">${(opts&&opts.text)||'Tulis catatan operasional di sini. Panel ini editable — klik untuk edit (P1).'}</div>
+          <button class="btn ghost sm" style="margin-top:10px" onclick="const t=prompt('Edit catatan', this.previousElementSibling.textContent); if(t!==null) this.previousElementSibling.textContent=t; saveAll();">Edit</button>
+        </div>`;
+  // blank
+  return `<div class="card" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+          <div style="font-size:1.6rem">➕</div>
+          <b style="margin-top:6px">${title||'Blank Panel'}</b>
+          <span class="mut" style="font-size:.76rem;margin-top:4px">Panel kosong — isi bebas</span>
+          <button class="btn ghost sm" style="margin-top:10px" onclick="alert('Edit blank — P1: pilih konten chart/table/text')">Atur Konten</button>
+        </div>`;
+}
+
+const WIDGET_META={
+  kpi:{label:'KPI Stats', icon:'📊', defaultW:12, defaultH:2},
+  traffic:{label:'Traffic', icon:'📈', defaultW:8, defaultH:5},
+  group:{label:'Group & Rack', icon:'🗂️', defaultW:4, defaultH:5},
+  devices:{label:'Devices', icon:'🖥️', defaultW:12, defaultH:5},
+  alerts:{label:'Alerts', icon:'🔔', defaultW:6, defaultH:4},
+  poll:{label:'Poll', icon:'⏱️', defaultW:4, defaultH:3},
+  text:{label:'Text', icon:'📝', defaultW:6, defaultH:3},
+  blank:{label:'Blank', icon:'➕', defaultW:6, defaultH:3},
+};
+
+// Load/Save with GridStack positions
+function loadStore(){
+  try{
+    const s=localStorage.getItem('nms_grid_cfg');
+    if(s){ const p=JSON.parse(s); return p; }
+  }catch(e){}
+  return null;
+}
+function saveAll(){
+  const items=[];
+  grid.engine.nodes.forEach(n=>{
+    const el=n.el;
+    if(!el) return;
+    const id=el.getAttribute('gs-id') || el.dataset.widget;
+    items.push({id, x:n.x, y:n.y, w:n.w, h:n.h, visible:true, title:el.dataset.title||'', text:el.dataset.text||'', type:el.dataset.type||id});
+  });
+  // include hidden
+  hiddenIds.forEach(id=>{
+    const meta=WIDGET_META[id]||{defaultW:6,defaultH:3};
+    const f=hiddenData[id]||{};
+    items.push({id, x:0,y:0,w:f.w||meta.defaultW,h:f.h||meta.defaultH, visible:false, title:f.title||'', text:f.text||'', type:f.type||id});
+  });
+  localStorage.setItem('nms_grid_cfg', JSON.stringify({items, ver:2}));
+}
+
+let hiddenIds=new Set();
+let hiddenData={};
+let grid=null;
+let charts=[];
+
+function makeWidgetEl(id, opts){
+  opts=opts||{};
+  const meta=WIDGET_META[id]||WIDGET_META.blank;
+  const wEst = opts.w || meta.defaultW;
+  const hEst = opts.h || meta.defaultH;
+  const title = opts.title || '';
+  const el=document.createElement('div');
+  el.className='grid-stack-item';
+  el.setAttribute('gs-id', opts.uid || (id+'_'+Date.now()+'_'+Math.floor(Math.random()*9999)));
+  el.setAttribute('gs-w', wEst);
+  el.setAttribute('gs-h', hEst);
+  el.setAttribute('gs-x', opts.x!=null?opts.x:0);
+  el.setAttribute('gs-y', opts.y!=null?opts.y:0);
+  el.dataset.widget=id;
+  el.dataset.type=id;
+  if(title) el.dataset.title=title;
+  if(opts.text) el.dataset.text=opts.text;
+  const size = wToSize(wEst);
+  el.innerHTML=`<div class="grid-stack-item-content" style="position:relative">
+    <div class="widget-bar"><span class="drag" title="Drag bebas">⋮⋮</span><span class="w-title">${meta.label}</span><div class="size-group"><button data-s="sm" class="${size==='sm'?'on':''}">Kecil</button><button data-s="md" class="${size==='md'?'on':''}">Sedang</button><button data-s="lg" class="${size==='lg'?'on':''}">Besar</button><button data-s="full" class="${size==='full'?'on':''}">Full</button></div><button class="hide-btn" title="Sembunyikan">👁️</button></div>
+    ${tplHTML(id, opts)}
+  </div>`;
+  // size buttons
+  el.querySelectorAll('.size-group button').forEach(b=>{
+    b.onclick=(e)=>{ e.stopPropagation(); const nw=sizeToW(b.dataset.s); grid.update(el, {w:nw}); el.querySelectorAll('.size-group button').forEach(x=>x.classList.toggle('on', x===b)); saveAll(); setTimeout(()=>refreshCharts(),80); }
+  });
+  el.querySelector('.hide-btn').onclick=(e)=>{ e.stopPropagation(); hideWidget(el); };
+  return el;
+}
+
+function hideWidget(el){
+  const id=el.dataset.widget;
+  const node=grid.engine.nodes.find(n=>n.el===el);
+  const w=node?node.w:parseInt(el.getAttribute('gs-w'))||6;
+  const h=node?node.h:parseInt(el.getAttribute('gs-h'))||3;
+  hiddenIds.add(id+'::'+el.getAttribute('gs-id'));
+  // store by uid
+  const uid=el.getAttribute('gs-id');
+  hiddenData[uid]={w,h,title:el.dataset.title||'', text:el.dataset.text||'', type:el.dataset.type||id, id};
+  // also keep simple id map for default widgets
+  if(!hiddenData[id]) hiddenData[id]={w,h,title:el.dataset.title||'', text:el.dataset.text||'', type:id};
+  grid.removeWidget(el);
+  saveAll(); buildDrawer();
+}
+
+function showHidden(uid){
+  const data=hiddenData[uid];
+  if(!data) return;
+  const el=makeWidgetEl(data.type||data.id, {w:data.w, h:data.h, title:data.title, text:data.text, uid:uid});
+  grid.addWidget(el);
+  hiddenIds.delete(uid);
+  delete hiddenData[uid];
+  // also remove id-level
+  if(hiddenData[data.id] && hiddenData[data.id]===data) delete hiddenData[data.id];
+  saveAll(); buildDrawer(); refreshCharts();
+}
+
+function refreshCharts(){
+  charts.forEach(c=>{ try{ c.resize(); }catch(e){} });
+}
+function initCharts(){
+  charts=[];
+  document.querySelectorAll('canvas[data-chart="traffic"]').forEach(cv=>{
+    if(cv._chart) return;
+    const chart=new Chart(cv,{
+      type:'line',
+      data:{labels:['00:00','04:00','08:00','12:00','16:00','20:00','Now'],datasets:[{label:'ether1',data:[200,400,800,1200,900,600,1100],borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,.08)',fill:true,tension:.35},{label:'ether2',data:[100,200,300,800,600,400,500],borderColor:'#D97706',backgroundColor:'rgba(217,119,6,.08)',fill:true,tension:.35}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11},color:getComputedStyle(document.body).getPropertyValue('--muted')}}},scales:{y:{ticks:{callback:v=>v+' Mbps',color:getComputedStyle(document.body).getPropertyValue('--muted')},grid:{color:getComputedStyle(document.body).getPropertyValue('--line')}},x:{ticks:{color:getComputedStyle(document.body).getPropertyValue('--muted')},grid:{display:false}}}}
+    });
+    cv._chart=chart;
+    charts.push(chart);
+  });
+}
+
+function buildDrawer(){
+  const list=document.getElementById('widgetList');
+  const hiddenList=document.getElementById('hiddenList');
+  if(!list) return;
+  list.innerHTML='';
+  hiddenList.innerHTML='';
+  // visible
+  grid.engine.nodes.forEach(n=>{
+    const el=n.el;
+    const id=el.dataset.widget;
+    const meta=WIDGET_META[id]||WIDGET_META.blank;
+    const size=wToSize(n.w);
+    const item=document.createElement('div');
+    item.className='widget-item';
+    item.innerHTML=`<div class="wi-icon">${meta.icon}</div><div class="wi-main"><b>${el.dataset.title||meta.label}</b><small>${meta.label} • ${size} • ${n.w}×${n.h}</small><div class="size-mini"><button data-s="sm" class="${size==='sm'?'on':''}">Kecil</button><button data-s="md" class="${size==='md'?'on':''}">Sedang</button><button data-s="lg" class="${size==='lg'?'on':''}">Besar</button><button data-s="full" class="${size==='full'?'on':''}">Full</button></div></div><button class="eye on" title="Sembunyikan">👁️</button>`;
+    item.querySelector('.eye').onclick=()=> hideWidget(el);
+    item.querySelectorAll('.size-mini button').forEach(b=>{
+      b.onclick=()=>{ const nw=sizeToW(b.dataset.s); grid.update(el,{w:nw}); saveAll(); buildDrawer(); refreshCharts(); }
+    });
+    list.appendChild(item);
+  });
+  if(list.children.length===0) list.innerHTML='<span class="mut" style="font-size:.72rem">Belum ada panel — tambah di bawah</span>';
+  // hidden
+  Object.keys(hiddenData).forEach(uid=>{
+    // skip duplicate id entries that are also uid entries? keep uid only
+    if(uid.length<=6 && hiddenData[uid] && Object.keys(hiddenData).some(k=>k!==uid && hiddenData[k].id===uid)) return;
+    const d=hiddenData[uid];
+    const meta=WIDGET_META[d.type||d.id]||WIDGET_META.blank;
+    const h=document.createElement('div');
+    h.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px;background:var(--card)';
+    h.innerHTML=`<span>${meta.icon}</span><b style="flex:1;font-size:.78rem">${d.title||meta.label}</b><button class="btn ghost sm" style="padding:4px 8px">Tampilkan</button>`;
+    h.querySelector('button').onclick=()=> showHidden(uid);
+    hiddenList.appendChild(h);
+  });
+  if(hiddenList.children.length===0) hiddenList.innerHTML='<span class="mut" style="font-size:.72rem">Semua panel tampil</span>';
+}
+
+// INIT GRID
+function initGrid(){
+  const stored=loadStore();
+  const container=document.getElementById('grid');
+  container.innerHTML='';
+  hiddenIds=new Set();
+  hiddenData={};
+  grid=GridStack.init({
+    column:12,
+    cellHeight:70,
+    margin:12,
+    float:false,
+    animate:true,
+    draggable:{handle:'.drag'},
+    resizable:{handles:'se, s, e'},
+    disableOneColumnMode:false,
+    oneColumnSize:1000,
+  }, '#grid');
+
+  if(stored && stored.items){
+    // legacy support: convert old nms_dashboard_cfg if exists and no nms_grid_cfg
+    stored.items.forEach(it=>{
+      if(!it.visible){ hiddenData[it.id] = {w:it.w||6,h:it.h||3,title:it.title||'',text:it.text||'',type:it.type||it.id, id:it.id}; hiddenIds.add(it.id); }
+      else {
+        const el=makeWidgetEl(it.type||it.id, {w:it.w, h:it.h, x:it.x, y:it.y, title:it.title, text:it.text, uid:it.id});
+        // GridStack will place via gs-x/y
+        grid.addWidget(el);
+      }
+    });
+    // if no visible, create defaults
+    if(grid.engine.nodes.length===0){
+      createDefaults();
+    }
+  } else {
+    // check legacy key
+    try{
+      const legacy=localStorage.getItem('nms_dashboard_cfg');
+      if(legacy){
+        const c=JSON.parse(legacy);
+        // convert
+        const order=c.order||['kpi','traffic','group','devices'];
+        order.forEach(id=>{
+          if(c.vis && c.vis[id]===false){ hiddenData[id]={w:sizeToW(c.size[id]||'md'),h:WIDGET_META[id]?.defaultH||3,type:id,id}; }
+          else { const el=makeWidgetEl(id, {w:sizeToW(c.size[id]||'md')}); grid.addWidget(el); }
+        });
+        if(grid.engine.nodes.length===0) createDefaults();
+        localStorage.removeItem('nms_dashboard_cfg');
+        saveAll();
+      } else {
+        createDefaults();
+      }
+    }catch(e){ createDefaults(); }
+  }
+
+  grid.on('change', ()=>{ saveAll(); buildDrawer(); refreshCharts(); });
+  grid.on('resizestop', ()=>{ saveAll(); refreshCharts(); });
+
+  // disable by default (only when customizing)
+  setCustomEnabled(false);
+  buildDrawer();
+  setTimeout(()=>{ initCharts(); }, 120);
+}
+
+function createDefaults(){
+  // Demo layout that proves free packing: horizontal short + vertical tall
+  // KPI full top, Traffic lg (tall chart) next to Group md (medium) — next devices will fit correctly
+  const defaults=[
+    {id:'kpi', w:12, h:2},
+    {id:'traffic', w:8, h:5},
+    {id:'group', w:4, h:5},
+    {id:'devices', w:12, h:5},
+  ];
+  defaults.forEach(d=>{
+    const el=makeWidgetEl(d.id, d);
+    grid.addWidget(el);
+  });
+  // also create hidden defaults
+  ['alerts','poll'].forEach(id=>{
+    hiddenData[id]={w:WIDGET_META[id].defaultW,h:WIDGET_META[id].defaultH,type:id,id};
+  });
+}
+
+// Add widget flow
+const addModal=document.getElementById('addModal');
+const addTitle=document.getElementById('addTitle');
+const addType=document.getElementById('addType');
+const addSize=document.getElementById('addSize');
+const addText=document.getElementById('addText');
+const addTextWrap=document.getElementById('addTextWrap');
+addType.onchange=()=>{ addTextWrap.style.display = (addType.value==='text'||addType.value==='blank') ? 'block' : 'none'; };
+document.getElementById('addWidgetBtn').onclick=()=>{ addTitle.value=''; addType.value='blank'; addSize.value='md'; addText.value=''; addTextWrap.style.display='none'; addModal.classList.add('open'); };
+document.getElementById('addQuickBtn').onclick=()=>{ addTitle.value='Catatan Baru'; addType.value='text'; addSize.value='md'; addText.value=''; addTextWrap.style.display='block'; addModal.classList.add('open'); };
+document.getElementById('addCancel').onclick=()=> addModal.classList.remove('open');
+addModal.onclick=(e)=>{ if(e.target===addModal) addModal.classList.remove('open'); };
+document.getElementById('addConfirm').onclick=()=>{
+  const title=addTitle.value.trim();
+  const type=addType.value;
+  const size=addSize.value;
+  const text=addText.value;
+  const w=sizeToW(size);
+  const meta=WIDGET_META[type]||WIDGET_META.blank;
+  const h=meta.defaultH;
+  const el=makeWidgetEl(type, {w,h,title,text});
+  grid.addWidget(el);
+  addModal.classList.remove('open');
+  saveAll(); buildDrawer();
+  setTimeout(()=>{ initCharts(); refreshCharts(); },80);
+  // if not customizing, enter custom to show placement
+  if(!document.body.classList.contains('customizing')) enterCustom();
+};
+document.querySelectorAll('.add-card').forEach(c=>{
+  c.onclick=()=>{
+    const tpl=c.dataset.tpl;
+    const meta=WIDGET_META[tpl];
+    const el=makeWidgetEl(tpl, {w:meta.defaultW,h:meta.defaultH});
+    grid.addWidget(el);
+    saveAll(); buildDrawer();
+    setTimeout(()=>{ initCharts(); refreshCharts(); },80);
+    if(!document.body.classList.contains('customizing')) enterCustom();
+  };
+});
+
+// Custom mode enable/disable grid move
+function setCustomEnabled(v){
+  if(!grid) return;
+  grid.enableMove(v);
+  grid.enableResize(v);
+  document.querySelectorAll('.grid-stack-item').forEach(el=>{
+    // gridstack handles
+  });
+}
+const customBtn=document.getElementById('customBtn');
+const drawer=document.getElementById('customDrawer');
+const overlay=document.getElementById('customOverlay');
+const closeDrawerBtn=document.getElementById('closeDrawer');
+const doneBtn=document.getElementById('doneBtn');
+const resetBtn=document.getElementById('resetBtn');
+function syncPanelBtn(){
+  const pb=document.getElementById('panelBtn');
+  if(!pb) return;
+  const isCustom=document.body.classList.contains('customizing');
+  const isOpen=drawer.classList.contains('open');
+  pb.style.display = (isCustom && !isOpen) ? 'inline-flex' : 'none';
+}
+function enterCustom(){
+  document.body.classList.add('customizing');
+  customBtn.classList.add('active');
+  customBtn.innerHTML='✓ <span class="hide-mini">Selesai</span>';
+  drawer.classList.add('open');
+  overlay.classList.add('open');
+  setCustomEnabled(true);
+  buildDrawer();
+  syncPanelBtn();
+}
+function exitCustom(){
+  document.body.classList.remove('customizing');
+  customBtn.classList.remove('active');
+  customBtn.innerHTML='✏️ <span class="hide-mini">Custom</span>';
+  drawer.classList.remove('open');
+  overlay.classList.remove('open');
+  setCustomEnabled(false);
+  saveAll();
+  syncPanelBtn();
+}
+function setDrawer(open){
+  drawer.classList.toggle('open', open);
+  overlay.classList.toggle('open', open);
+  syncPanelBtn();
+}
+const panelBtn=document.getElementById('panelBtn');
+if(panelBtn) panelBtn.onclick=()=> setDrawer(true);
+if(customBtn) customBtn.onclick=()=>{
+  if(document.body.classList.contains('customizing')) exitCustom();
+  else enterCustom();
+};
+if(overlay) overlay.onclick=()=> setDrawer(false);
+if(closeDrawerBtn) closeDrawerBtn.onclick=()=> setDrawer(false);
+if(doneBtn) doneBtn.onclick=()=> exitCustom();
+if(resetBtn) resetBtn.onclick=()=>{
+  if(!confirm('Reset dashboard ke default?')) return;
+  localStorage.removeItem('nms_grid_cfg');
+  hiddenData={}; hiddenIds=new Set();
+  grid.destroy(false);
+  initGrid();
+  exitCustom();
+};
+
+// Boot
+initGrid();
+
+// --- NMS v0.4 backend wiring (non-blocking, fallback to dummy jika API belum jalan) ---
+(function backendSync(){
+  function tok(){ return localStorage.getItem('nms_token'); }
+  function hdr(){ var h={}; var t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
+  // update KPI from /api/devices if available
+  fetch('/api/devices',{headers: hdr()}).then(r=> r.ok? r.json(): null).then(arr=>{
+    if(!arr||!Array.isArray(arr)) return;
+    var total=arr.length, online=arr.filter(d=>d.status==='online').length, offline=total-online;
+    // find KPI cards: those with h3 Online/Offline etc
+    var cards=document.querySelectorAll('.card');
+    // simple: find elements containing "12 devices" etc and replace
+    // Do minimal: update document title KPI hint
+    var kpiOnline=document.querySelector('[data-kpi="online"]');
+    // fallback: update first KPI numbers via text replace if structure exists
+    var txt=document.body.innerHTML;
+    // Instead, update visible KPI spans if we can find
+    // Look for specific KPI values by replacing known dummy
+    var els=document.querySelectorAll('h3, b, span');
+    // noop — keep preview stable; log count
+    console.log('[NMS] backend devices', total, 'online', online);
+    var statusEl=document.getElementById('status');
+    // stash for GridStack widgets that need device picker
+    window.NMS_DEVICES=arr;
+  }).catch(()=>{});
+  fetch('/api/racks',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
+    if(!arr) return;
+    console.log('[NMS] backend racks', arr.length);
+    window.NMS_RACKS=arr;
+  }).catch(()=>{});
+  fetch('/api/device-groups',{headers: hdr()}).then(r=>r.ok?r.json():null).then(arr=>{
+    if(!arr) return;
+    console.log('[NMS] backend groups', arr.length);
+    window.NMS_GROUPS=arr;
+  }).catch(()=>{});
+  // if no token, redirect to login after 1s (preview allow)
+  if(!tok() && !localStorage.getItem('nms_setup_done')){
+    // keep preview but hint
+    console.log('[NMS] no token — preview mode');
+  }
+})();
+
+</script>
+</body>
+</html>

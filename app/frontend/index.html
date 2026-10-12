@@ -1,2 +1,129 @@
 <!DOCTYPE html>
-<html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NMS — Login</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NMS — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#F1F5F9;color:#0F172A;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.card{max-width:440px;width:100%}
+h1{font-size:1.35rem;font-weight:800}
+.sub{color:#64748B;font-size:.85rem;margin:.3rem 0 1rem}
+.banner{background:#FEF3C7;border:1px solid #FDE68A;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.banner b{color:#92400E;font-size:.82rem}
+.banner code{background:#fff;padding:2px 7px;border-radius:6px;font-weight:700;border:1px solid #FDE68A}
+.banner small{color:#92400E;font-size:.72rem;display:block;margin-top:6px}
+.form{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:18px;box-shadow:0 4px 24px rgba(0,0,0,.06)}
+label{font-size:.82rem;font-weight:600;display:block;margin-bottom:10px}
+input{width:100%;padding:10px 12px;border:1.5px solid #CBD5E1;border-radius:10px;font:inherit;margin-top:6px}
+input:focus{outline:none;border-color:#2563EB}
+.btn{width:100%;background:#0A2463;color:#fff;border:0;border-radius:10px;padding:11px;font-weight:700;cursor:pointer;margin-top:4px}
+.btn:hover{background:#1E3A8A}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.err{background:#FEE2E2;border:1px solid #FCA5A5;color:#991B1B;border-radius:10px;padding:9px 12px;font-size:.82rem;margin-bottom:10px;display:none}
+.ok{background:#D1FAE5;border:1px solid #6EE7B7;color:#065F46;border-radius:10px;padding:9px 12px;font-size:.82rem;margin-bottom:10px;display:none}
+.hint{font-size:.7rem;color:#94A3B8;text-align:center;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>NMS — Multi-Device Management</h1>
+<p class="sub">Login untuk akses dashboard monitoring & remote</p>
+<div class="banner" id="banner" style="display:none">
+<b>⚠️ Login awal — kredensial default masih aktif</b>
+<div style="font-size:.82rem;margin-top:7px">Username: <code id="bUser">superadmin</code> &nbsp; Password: <code id="bPass">Admin@123</code></div>
+<small>Segera ganti setelah login pertama. Banner ini otomatis hilang setelah password diganti.</small>
+<small id="bSrc" style="color:#a16207;display:none">(preview lokal — backend belum jalan)</small>
+</div>
+<div class="form" id="loginForm">
+<div class="err" id="err"></div>
+<div class="ok" id="ok"></div>
+<label>Username<input id="u" placeholder="superadmin" value="superadmin"></label>
+<label>Password<input id="p" type="password" placeholder="••••••••" value=""></label>
+<button class="btn" id="btnLogin">Masuk</button>
+<p class="hint">Default first-time: superadmin / Admin@123 (hilang setelah diganti)</p>
+</div>
+<div class="form" id="changeForm" style="display:none">
+<h3 style="font-size:.95rem;font-weight:800;margin-bottom:6px">Ganti Password Wajib</h3>
+<p style="font-size:.82rem;color:#92400E;background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:8px 10px;margin-bottom:10px">Anda login dengan password default. Demi keamanan, ganti sekarang.</p>
+<div class="err" id="err2"></div>
+<label>Password baru (min 8)<input id="np" type="password"></label>
+<label>Ulangi<input id="np2" type="password"></label>
+<button class="btn" id="btnChange">Simpan Password Baru</button>
+</div>
+<p class="hint" style="margin-top:14px">NMS v0.4 • <span id="status">memuat...</span> • <a href="dashboard.html" style="color:#2563EB;text-decoration:none">Preview Dashboard →</a></p>
+</div>
+<script>
+(function(){
+var banner=document.getElementById('banner'), err=document.getElementById('err'), ok=document.getElementById('ok'), err2=document.getElementById('err2');
+var bUser=document.getElementById('bUser'), bPass=document.getElementById('bPass'), bSrc=document.getElementById('bSrc'), statusEl=document.getElementById('status');
+var loginForm=document.getElementById('loginForm'), changeForm=document.getElementById('changeForm');
+function showBanner(u,p,s){bUser.textContent=u;bPass.textContent=p;banner.style.display='block';if(s) bSrc.style.display='block'; else bSrc.style.display='none';}
+function hideBanner(){banner.style.display='none'}
+function showErr(m){err.textContent=m;err.style.display='block'; ok.style.display='none';}
+function showOk(m){ok.textContent=m;ok.style.display='block'; err.style.display='none';}
+function showErr2(m){err2.textContent=m;err2.style.display='block';}
+function getStoredPass(){return localStorage.getItem('nms_admin_pass')||'Admin@123'}
+function goDashboard(){ location.href='dashboard.html'; }
+function checkMustChange(){ if(localStorage.getItem('nms_must_change')==='1'){ loginForm.style.display='none'; changeForm.style.display='block'; statusEl.textContent='wajib ganti password'; } }
+checkMustChange();
+fetch('/api/setup-status').then(function(r){ if(!r.ok) throw new Error('no api'); return r.json(); }).then(function(d){
+ if(d.firstSetup){showBanner(d.defaultUser||'superadmin', d.defaultPass||'Admin@123'); statusEl.textContent='backend: firstSetup=true';}
+ else { var done=localStorage.getItem('nms_setup_done'); if(!done) showBanner('superadmin','Admin@123',true); else hideBanner(); statusEl.textContent='backend: ready'; }
+}).catch(function(){
+ var done=localStorage.getItem('nms_setup_done'); if(localStorage.getItem('nms_must_change')==='1'){ showBanner('superadmin','Admin@123',true); } else if(!done) showBanner('superadmin','Admin@123',true); else hideBanner(); statusEl.textContent='preview lokal (tanpa backend)';
+ if(localStorage.getItem('nms_must_change')==='1') checkMustChange();
+});
+document.getElementById('btnLogin').addEventListener('click', function(){
+ var u=document.getElementById('u').value.trim(), p=document.getElementById('p').value;
+ if(!u||!p){ showErr('Isi username & password'); return; }
+ var btn=this; btn.disabled=true; btn.textContent='Memeriksa...';
+ fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}).then(function(r){
+   if(!r.ok) throw new Error('no api');
+   return r.json();
+ }).then(function(d){
+   btn.disabled=false; btn.textContent='Masuk';
+   if(d.must_change_password){ localStorage.setItem('nms_must_change','1'); loginForm.style.display='none'; changeForm.style.display='block'; showBanner(d.defaultUser||'superadmin', d.defaultPass||'Admin@123'); }
+   else if(d.ok||d.token){ if(d.token) localStorage.setItem('nms_token', d.token); localStorage.setItem('nms_setup_done','1'); localStorage.removeItem('nms_must_change'); hideBanner(); showOk('Login OK — masuk dashboard...'); setTimeout(goDashboard,400); }
+   else showErr(d.error||'Login gagal');
+ }).catch(function(){
+   btn.disabled=false; btn.textContent='Masuk';
+   var stored=getStoredPass();
+   var isDefault = (u==='superadmin' && p==='Admin@123' && !localStorage.getItem('nms_setup_done'));
+   var isMustChangePending = localStorage.getItem('nms_must_change')==='1';
+   // first time default -> must change
+   if(u==='superadmin' && p==='Admin@123' && !localStorage.getItem('nms_setup_done') && !isMustChangePending){
+     localStorage.setItem('nms_must_change','1'); loginForm.style.display='none'; changeForm.style.display='block'; showBanner('superadmin','Admin@123',true);
+   } else if(isMustChangePending) {
+     // already must change, any correct default should stay there
+     if(u==='superadmin' && p==='Admin@123'){ loginForm.style.display='none'; changeForm.style.display='block'; }
+     else showErr('Masih wajib ganti password — gunakan superadmin / Admin@123 dulu');
+   } else {
+     // normal login after setup_done
+     if(u==='superadmin' && p===stored){
+       localStorage.setItem('nms_setup_done','1'); localStorage.setItem('nms_token', 'preview-token'); hideBanner(); showOk('Login OK — preview'); setTimeout(goDashboard,400);
+     } else if(u==='superadmin' && p==='Admin@123' && localStorage.getItem('nms_setup_done')){
+       // default sudah tidak berlaku setelah ganti
+       showErr('Password default sudah diganti — gunakan password baru');
+     } else {
+       showErr('Preview tanpa backend — coba superadmin / '+stored);
+     }
+   }
+ });
+});
+document.getElementById('btnChange').addEventListener('click', function(){
+ var a=document.getElementById('np').value, b=document.getElementById('np2').value;
+ if(a.length<8){ showErr2('Minimal 8 karakter'); return; }
+ if(a!==b){ showErr2('Konfirmasi tidak sama'); return; }
+ (function(){ var h={'Content-Type':'application/json'}; var t=localStorage.getItem('nms_token'); if(t) h['Authorization']='Bearer '+t; return fetch('/api/auth/change-password',{method:'POST',headers:h,body:JSON.stringify({username:'superadmin',old_password:'Admin@123',new_password:a})}); })().catch(function(){});
+ localStorage.setItem('nms_setup_done','1'); localStorage.removeItem('nms_must_change'); localStorage.setItem('nms_admin_pass',a);
+ hideBanner(); changeForm.style.display='none'; loginForm.style.display='block';
+ showOk('Password baru tersimpan — banner hilang permanen. Masuk dengan password baru atau langsung ke dashboard.');
+ statusEl.textContent='password diganti — preview';
+ setTimeout(goDashboard,800);
+});
+})();
+</script>
+</body>
+</html>

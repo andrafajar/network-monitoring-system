@@ -2,7 +2,7 @@
 
 ## Konsep
 - **Node** = device (router, switch, server) — punya `group_id`, `rack_id` (nullable), `x,y` di layout
-- **Rack** = container node — adalah device group fisik (Rack A, Rack B) atau `rack` table sendiri. Di layer atas, rack tampil sebagai 1 node besar. Klik rack → drill-down ke layer isi rack tersebut.
+- **Rack** = container node — **dinamis, bisa tambah/hapus/rename sebanyak-banyaknya** (bukan hardcode Rack A/B, itu hanya contoh). Tiap rack adalah row di `racks` table, dibuat via `+ Tambah Rack` di UI. Di layer atas, tiap rack tampil sebagai 1 node besar. Klik rack → drill-down ke layer isi rack tersebut.
 - **Link** = kabel/edge antar device (atau antar rack di layer atas)
 
 ## Layer & Navigasi

@@ -2,35 +2,52 @@ services:
   db:
     image: timescale/timescaledb:latest-pg16
     environment:
-      POSTGRES_DB: nms
-      POSTGRES_USER: nms
-      POSTGRES_PASSWORD: nms_secret_change_me
+      POSTGRES_DB: ${POSTGRES_DB:-nms}
+      POSTGRES_USER: ${POSTGRES_USER:-nms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nms_secret_change_me}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
+
   redis:
     image: redis:7-alpine
     ports:
       - "127.0.0.1:6379:6379"
+
   api:
     build: ./app/api
     ports:
       - "8080:8080"
     depends_on: [db, redis]
+    env_file: [.env]
     environment:
-      DATABASE_URL: postgres://nms:nms_secret_change_me@db:5432/nms?sslmode=disable
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgres://nms:nms_secret_change_me@db:5432/nms?sslmode=disable}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_SECRET: ${JWT_SECRET:-change_this_32_chars_min_random}
+      DEFAULT_SUPERADMIN_USER: ${DEFAULT_SUPERADMIN_USER:-superadmin}
+      DEFAULT_SUPERADMIN_PASS: ${DEFAULT_SUPERADMIN_PASS:-Admin@123}
+      PORT: 8080
+    volumes:
+      - ./migrations:/migrations:ro
+    restart: unless-stopped
+
   poller:
     build: ./app/poller
     depends_on: [db, redis, api]
+    env_file: [.env]
     environment:
-      DATABASE_URL: postgres://nms:nms_secret_change_me@db:5432/nms?sslmode=disable
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: ${DATABASE_URL:-postgres://nms:nms_secret_change_me@db:5432/nms?sslmode=disable}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      GLOBAL_POLL_INTERVAL: ${GLOBAL_POLL_INTERVAL:-30}
+    restart: unless-stopped
+
   frontend:
     build: ./app/frontend
     ports:
       - "3000:80"
     depends_on: [api]
+    restart: unless-stopped
+
 volumes:
   pgdata:
