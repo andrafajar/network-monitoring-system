@@ -138,6 +138,7 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 .sidebar-overlay.show{display:block}
 #sbToggle{position:fixed;top:14px;left:14px;z-index:61;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 18px rgba(0,0,0,.08);font-size:18px;line-height:1;transition:left .22s, background .15s}
 .sidebar:not(.minimized) ~ #sbToggle{left:274px;background:var(--sidebar-bg);color:#fff;border-color:rgba(255,255,255,.18)}
+@media(max-width:1000px){.sidebar:not(.minimized) ~ #sbToggle{left:14px !important}}
 #sbToggle:hover{filter:brightness(.98)}
 #topMinBtn{display:none !important}
 #sideToggle{display:none !important}
@@ -190,7 +191,6 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 <button id="sbToggle" title="Toggle sidebar" aria-label="Toggle sidebar">☰</button>
 <div class="main">
   <div class="topbar">
-    <button class="btn ghost" id="topMinBtn" style="padding:6px 10px" title="Toggle sidebar">☰</button>
     <div class="bread" id="bread"><a href="#" onclick="setLayer('top');return false">Top</a> <span style="color:var(--muted)">›</span> <b id="breadCur">Rack View</b> <span id="breadExtra" class="mut" style="margin-left:6px"></span></div>
     <span style="flex:1"></span>
     <button class="btn ghost sm" onclick="resetView()">◎ Reset view</button>
@@ -274,8 +274,16 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
   function applyMini(m){
     sb.classList.toggle('minimized',m);
     localStorage.setItem('nms_sidebar_mini',m?'1':'0');
-    if(sbToggle){ sbToggle.textContent=m?'☰':'✕'; sbToggle.title=m?'Expand sidebar':'Minimize sidebar'; const isMobile=window.innerWidth<=1000; sbToggle.style.left = m ? '14px' : (isMobile ? '14px' : '274px'); }
-    if(sbOverlay){ const isMobile=window.innerWidth<=1000; sbOverlay.style.display = (!m && isMobile) ? 'block' : 'none'; sbOverlay.classList.toggle('show', !m && isMobile); }
+    const isMobile=window.innerWidth<=1000;
+    if(sbToggle){
+      sbToggle.textContent=m?'☰':'✕';
+      sbToggle.title=m?'Expand sidebar':'Minimize sidebar';
+      sbToggle.style.left = isMobile ? '14px' : (m ? '14px' : '274px');
+    }
+    if(sbOverlay){
+      sbOverlay.style.display = (!m && isMobile) ? 'block' : 'none';
+      sbOverlay.classList.toggle('show', !m && isMobile);
+    }
   }
   const _rawMini=localStorage.getItem('nms_sidebar_mini');
   const savedMini=_rawMini===null ? window.innerWidth<=1000 : _rawMini==='1';
@@ -300,8 +308,12 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
   try{ if(localStorage.getItem('nms_dev_sub')==='1'){ const w=document.getElementById('devSubWrap'); if(w) w.classList.add('open'); } if(localStorage.getItem('nms_dev_sub')==='0'){ const w=document.getElementById('devSubWrap'); if(w) w.classList.remove('open'); } }catch(_){}
   window.addEventListener('resize', ()=>{
     const m=sb.classList.contains('minimized');
-    if(sbToggle){ const isMobile=window.innerWidth<=1000; sbToggle.style.left = m ? '14px' : (isMobile ? '14px' : '274px'); }
-    if(sbOverlay){ const isMobile=window.innerWidth<=1000; sbOverlay.style.display = (!m && isMobile) ? 'block' : 'none'; sbOverlay.classList.toggle('show', !m && isMobile); }
+    const isMobile=window.innerWidth<=1000;
+    if(sbToggle) sbToggle.style.left = isMobile ? '14px' : (m ? '14px' : '274px');
+    if(sbOverlay){
+      sbOverlay.style.display = (!m && isMobile) ? 'block' : 'none';
+      sbOverlay.classList.toggle('show', !m && isMobile);
+    }
   });
   dots.forEach(b=>{ b.onclick=()=>{ const t=b.dataset.theme; body.setAttribute('data-sidebar',t); localStorage.setItem('nms_sidebar_theme',t); dots.forEach(x=>x.classList.remove('active')); b.classList.add('active'); }});
   if(darkToggle){ darkToggle.onchange=()=>{ if(darkToggle.checked){ body.setAttribute('data-theme','dark'); localStorage.setItem('nms_dark','1'); } else { body.removeAttribute('data-theme'); localStorage.setItem('nms_dark','0'); } syncDarkIcon(); }; }

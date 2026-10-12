@@ -1,3 +1,8 @@
+## [0.7.3] - 2026-10-13
+### Fixed
+- Sidebar hide button (`#sbToggle`): positioning logic mobile (≤1000px) vs desktop, smooth transition `14px` when minimized / mobile, `274px` when desktop expanded.
+- Cleaned up obsolete `#topMinBtn` topbar duplication and stale media queries across all 4 frontend pages.
+
 # Changelog
 
 ## v0.7.2 — 2026-10-12
