@@ -1,3 +1,7 @@
+## [0.9.6] - 2026-10-13
+### Fixed
+- **Device/Rack kosong sampai di-refresh**: root cause `loadGroups().then(()=>loadRacks()).then(()=>loadDevices()).then(()=>loadLinks())` sequential — kalau satu `jget` 401 (token belum ada / login di tab lain / hiccup) rantai putus, `devTable/racksList` tetap `Memuat...` harus manual refresh. Fix: hapus tombol `refresh` di 4 header (`Device List/Racks/Links/Groups`), ganti init jadi `Promise.allSettled([loadGroups(),loadRacks(),loadDevices(),loadLinks()])` paralel (satu gagal tidak blokir lain), tambah `initLoad({silent:true})` auto-retry 15s saat tab visible + `visibilitychange/focus/storage(nms_token)` + retry 400ms saat token baru muncul. `if(!tok())` sekarang `Belum login — login superadmin dulu, lalu otomatis termuat` tanpa perlu klik refresh.
+
 ## [0.9.5] - 2026-10-13
 ### Fixed
 - **Racks table mismatch**: `async function loadRacks()` lama masih `innerHTML=a.map(r=> <div style=display:flex ...> kartu)` ke `tbody#racksList` — browser pecah layout (div di dalam tbody keluar dari tabel, tidak sejajar thead 5 kolom). Fix: `loadRacks()` sekarang delegasi ke `renderRacksList()` (TR), `colgroup 110/*/*/90/110`, `thead ID/Name/Location/Devices/Actions` sejajar `tbody TR mono/chip/act-btn`, catch `Gagal load` juga jadi `TR colspan=5 centered` bukan `div`. Sisa `DIV injection` ke `racksList` 0, `TR` injection 3, `colgroup` 3, `class=table` 3 verified, `node --check 0`.

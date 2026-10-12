@@ -273,7 +273,6 @@ body.customizing .banner-custom{display:flex}
           </div>
           <select id="filterGroup" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:auto;min-width:130px;background:var(--card);color:var(--ink)"><option value="">All groups</option></select>
           <select id="filterRack" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:auto;min-width:120px;background:var(--card);color:var(--ink)"><option value="">All racks</option></select>
-          <button class="btn sm ghost" onclick="loadDevices()" title="Refresh devices" style="padding:7px 10px">↻</button>
           <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openDeviceModal()">+ Device</button>
         </div>
       </div>
@@ -296,7 +295,6 @@ body.customizing .banner-custom{display:flex}
             <svg class="ico" style="position:absolute;left:10px;width:15px;height:15px;color:var(--muted);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="rackSearch" placeholder="Cari ID, nama, lokasi..." style="padding:7px 10px 7px 32px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:220px;background:var(--card);color:var(--ink)" oninput="renderRacksList()">
           </div>
-          <button class="btn sm ghost" onclick="loadRacks()" title="Refresh racks" style="padding:7px 10px">↻</button>
           <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openRackModal()">+ Rack</button>
         </div>
       </div>
@@ -316,8 +314,7 @@ body.customizing .banner-custom{display:flex}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
           <b>Groups</b>
           <div style="display:flex;gap:6px">
-            <button class="btn sm ghost" onclick="loadGroups()">↻</button>
-            <button class="btn sm" onclick="openGroupModal()">+ Group</button>
+            <button class="btn sm" style="background:#0A2463;color:#fff;padding:6px 10px" onclick="openGroupModal()">+ Group</button>
           </div>
         </div>
         <input id="groupSearch" placeholder="Cari group..." style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;margin-bottom:10px;background:var(--card);color:var(--ink)" oninput="renderGroupsList()">
@@ -355,7 +352,6 @@ body.customizing .banner-custom{display:flex}
             <svg class="ico" style="position:absolute;left:10px;width:15px;height:15px;color:var(--muted);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input id="linkSearch" placeholder="Cari ID, src/dst, deskripsi..." style="padding:7px 10px 7px 32px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:220px;background:var(--card);color:var(--ink)" oninput="renderLinks()">
           </div>
-          <button class="btn sm ghost" onclick="loadLinks()" title="Refresh links" style="padding:7px 10px">↻</button>
           <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openLinkModal()">+ Link</button>
         </div>
       </div>
@@ -992,8 +988,29 @@ document.getElementById('filterRack').onchange=renderDevices;
 
 // init
 syncViewFromHash();
-loadGroups().then(()=> loadRacks()).then(()=> loadDevices()).then(()=> loadLinks());
-if(!tok()){ document.getElementById('devTable').innerHTML='<tr><td colspan="8" class="mut">Login dulu di <a href="index.html" style="color:#2563EB">index.html</a> (superadmin/Admin@123) — lalu refresh.</td></tr>'; }
+// auto-load paralel + retry — tidak perlu tombol refresh
+async function initLoad(opts={}){
+  const silent=!!opts.silent;
+  if(!tok()){
+    const tb=document.getElementById('devTable');
+    if(tb && !silent) tb.innerHTML='<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Belum login — <a href="index.html" style="color:#2563EB">login superadmin/Admin@123</a> dulu, lalu otomatis termuat</td></tr>';
+    return;
+  }
+  // paralel, tiap loader sudah handle 401 sendiri — pakai allSettled biar satu gagal tidak blokir yang lain
+  const rs=await Promise.allSettled([loadGroups(), loadRacks(), loadDevices(), loadLinks()]);
+  if(!silent){
+    const fails=rs.filter(r=> r.status==='rejected');
+    if(fails.length) console.warn('initLoad partial fail', fails.map(f=> String(f.reason||'').slice(0,120)));
+  }
+}
+initLoad();
+// auto-refresh 15s saat tab terlihat + saat balik fokus/visibility/storage (login di tab lain)
+let _autoTimer=setInterval(()=>{ if(tok() && document.visibilityState==='visible') initLoad({silent:true}); }, 15000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && tok()) initLoad({silent:true}); });
+window.addEventListener('focus', ()=>{ if(tok()) initLoad({silent:true}); });
+window.addEventListener('storage', (e)=>{ if(e && e.key==='nms_token') initLoad(); });
+// jika sebelumnya "Gagal load — login dulu", retry sekali saat token muncul
+try{ const _tok0=tok(); if(_tok0) setTimeout(()=> initLoad({silent:true}), 400); }catch(_){}
 </script>
 <!-- Terminal Modal (shared bastion WS — same as devices.html) -->
 <div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">
