@@ -647,16 +647,14 @@ async function loadRacks(){
   try{
     const a=await jget('/api/racks');
     RACKS=a;
-    document.getElementById('racksList').innerHTML=a.map(r=> `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)"><div><b style="font-size:.84rem">${r.name} (${r.id})</b><div class="mut" style="font-size:.72rem">${r.location||''}</div></div><button class="btn sm" onclick="delRack('${r.id}')">Hapus</button></div>`).join('') || '<div class="mut">Kosong</div>';
+    renderRacksList();
     const fr=document.getElementById('fRack'), flr=document.getElementById('filterRack');
-    const opts='<option value="">— none —</option>'+a.map(r=> `<option value="${r.id}">${r.id} — ${r.name}</option>`).join('');
-    fr.innerHTML=opts; flr.innerHTML='<option value="">All racks</option>'+a.map(r=> `<option value="${r.id}">${r.id}</option>`).join('');
-    // link sensor device list
-    const ls=document.getElementById('lSensor');
-    const cur=ls.value;
-    ls.innerHTML='<option value="">— none —</option>'+ (DEVICES||[]).map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join('');
-    if(cur) ls.value=cur;
-  }catch(e){ document.getElementById('racksList').innerHTML='<div class="mut" style="color:#DC2626">Gagal load</div>'; }
+    if(fr && flr){
+      const opts='<option value="">— none —</option>'+a.map(r=> `<option value="${r.id}">${r.id} — ${r.name}</option>`).join('');
+      fr.innerHTML=opts; flr.innerHTML='<option value="">All racks</option>'+a.map(r=> `<option value="${r.id}">${r.id}</option>`).join('');
+    }
+    const ls=document.getElementById('lSensor'); if(ls){ const cur=ls.value; ls.innerHTML='<option value="">— none —</option>'+ (DEVICES||[]).map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join(''); if(cur) ls.value=cur; }
+  }catch(e){ const el=document.getElementById('racksList'); if(el) el.innerHTML='<tr><td colspan="5" class="mut" style="color:#DC2626;padding:28px 12px;text-align:center">Gagal load</td></tr>'; }
 }
 async function loadDevices(){
   try{
@@ -926,7 +924,7 @@ async function _newLoadRacks(){
       fr.innerHTML=opts; flr.innerHTML='<option value="">All racks</option>'+a.map(r=> `<option value="${r.id}">${r.id}</option>`).join('');
     }
     const ls=document.getElementById('lSensor'); if(ls){ const cur=ls.value; ls.innerHTML='<option value="">— none —</option>'+(DEVICES||[]).map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join(''); if(cur) ls.value=cur; }
-  }catch(e){ const el=document.getElementById('racksList'); if(el) el.innerHTML='<div class="mut" style="color:#DC2626">Gagal load</div>'; }
+  }catch(e){ const el=document.getElementById('racksList'); if(el) el.innerHTML='<tr><td colspan="5" class="mut" style="color:#DC2626;padding:28px 12px;text-align:center">Gagal load</td></tr>'; }
 }
 const _origLoadDevices = loadDevices;
 async function _newLoadDevices(){

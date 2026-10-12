@@ -1,3 +1,7 @@
+## [0.9.5] - 2026-10-13
+### Fixed
+- **Racks table mismatch**: `async function loadRacks()` lama masih `innerHTML=a.map(r=> <div style=display:flex ...> kartu)` ke `tbody#racksList` — browser pecah layout (div di dalam tbody keluar dari tabel, tidak sejajar thead 5 kolom). Fix: `loadRacks()` sekarang delegasi ke `renderRacksList()` (TR), `colgroup 110/*/*/90/110`, `thead ID/Name/Location/Devices/Actions` sejajar `tbody TR mono/chip/act-btn`, catch `Gagal load` juga jadi `TR colspan=5 centered` bukan `div`. Sisa `DIV injection` ke `racksList` 0, `TR` injection 3, `colgroup` 3, `class=table` 3 verified, `node --check 0`.
+
 ## [0.9.4] - 2026-10-13
 ### Fixed
 - **Device List rapi**: view-devices#devTable dibungkus border + radius 10px + overflow:auto, table.table colgroup 8 kolom 110/210/92/120/92/84/94/190 min-width:860px, thead sticky top:0 + white-space:nowrap, td vertical-align:middle + hover rgba(10,36,99,.04), ID/IP/Poll mono (ui-monospace), Name ellipsis max-width:190px + title, Type chip, Group/Rack chip bordered bg, Poll centered mono, Status badge bad/mid/ok (fix off->bad), Actions right-aligned inline-flex 4 remote + separator + Edit/Hapus, empty state padding:28px text-center bedakan Belum ada device vs Tidak ada hasil. Filter devSearch kini name+ip+id+type, Group/Rack label via gmap/rmap.
