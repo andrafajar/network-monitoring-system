@@ -988,29 +988,50 @@ document.getElementById('filterRack').onchange=renderDevices;
 
 // init
 syncViewFromHash();
+function isPreviewToken(t){ return t==='preview-token'; }
 // auto-load paralel + retry — tidak perlu tombol refresh
 async function initLoad(opts={}){
   const silent=!!opts.silent;
-  if(!tok()){
-    const tb=document.getElementById('devTable');
-    if(tb && !silent) tb.innerHTML='<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Belum login — <a href="index.html" style="color:#2563EB">login superadmin/Admin@123</a> dulu, lalu otomatis termuat</td></tr>';
-    return;
+  const t=tok();
+  if(!t || isPreviewToken(t)){
+    // belum login atau preview lokal — jangan fetch api, tampilkan pesan di SEMUA tabel (biar tidak stuck Memuat...)
+    const msg = isPreviewToken(t)
+      ? '<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Preview lokal (tanpa backend) — <a href="index.html" style="color:#2563EB">login superadmin/Admin@123</a> ke VPS untuk data real</td></tr>'
+      : '<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Belum login — <a href="index.html" style="color:#2563EB">login superadmin/Admin@123</a> dulu, lalu otomatis termuat</td></tr>';
+    if(!silent){
+      const tb=document.getElementById('devTable'); if(tb) tb.innerHTML=msg;
+      const rb=document.getElementById('racksList'); if(rb) rb.innerHTML='<tr><td colspan="5" class="mut" style="padding:28px 12px;text-align:center">Belum login — login dulu di <a href="index.html" style="color:#2563EB">index.html</a></td></tr>';
+      const lb=document.getElementById('linkTable'); if(lb) lb.innerHTML='<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Belum login — login dulu</td></tr>';
+      const gb=document.getElementById('groupsList'); if(gb) gb.innerHTML='<div class="mut" style="padding:16px;text-align:center">Belum login — <a href="index.html" style="color:#2563EB">login</a> dulu</div>';
+    }
+    if(isPreviewToken(t)) return; // jangan fetch api dengan preview-token
+    if(!t) return;
   }
   // paralel, tiap loader sudah handle 401 sendiri — pakai allSettled biar satu gagal tidak blokir yang lain
-  const rs=await Promise.allSettled([loadGroups(), loadRacks(), loadDevices(), loadLinks()]);
-  if(!silent){
-    const fails=rs.filter(r=> r.status==='rejected');
-    if(fails.length) console.warn('initLoad partial fail', fails.map(f=> String(f.reason||'').slice(0,120)));
-  }
+  try{
+    const rs=await Promise.allSettled([loadGroups(), loadRacks(), loadDevices(), loadLinks()]);
+    if(!silent){
+      const fails=rs.filter(r=> r.status==='rejected');
+      if(fails.length) console.warn('initLoad partial fail', fails.map(f=> String(f.reason||'').slice(0,120)));
+    }
+  }catch(e){ console.warn('initLoad error', e); }
 }
-initLoad();
+function runInitLoad(opts){ try{ initLoad(opts); }catch(e){ console.warn(e); } }
+// pastikan DOM siap baru load (script sudah di akhir body tapi tetap aman)
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=> runInitLoad());
+else runInitLoad();
+// fallback: jika setelah 900ms masih Memuat... dan belum login, paksa tampilkan pesan (jaga kalau initLoad terlewat)
+setTimeout(()=>{ try{
+  const tb=document.getElementById('devTable'); const txt=tb? tb.textContent||'':''; 
+  if(txt.includes('Memuat') && !tok()) runInitLoad();
+} catch(_){} }, 900);
 // auto-refresh 15s saat tab terlihat + saat balik fokus/visibility/storage (login di tab lain)
-let _autoTimer=setInterval(()=>{ if(tok() && document.visibilityState==='visible') initLoad({silent:true}); }, 15000);
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && tok()) initLoad({silent:true}); });
-window.addEventListener('focus', ()=>{ if(tok()) initLoad({silent:true}); });
-window.addEventListener('storage', (e)=>{ if(e && e.key==='nms_token') initLoad(); });
+let _autoTimer=setInterval(()=>{ if(tok() && !isPreviewToken(tok()) && document.visibilityState==='visible') runInitLoad({silent:true}); }, 15000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
+window.addEventListener('focus', ()=>{ if(tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
+window.addEventListener('storage', (e)=>{ if(e && e.key==='nms_token') runInitLoad(); });
 // jika sebelumnya "Gagal load — login dulu", retry sekali saat token muncul
-try{ const _tok0=tok(); if(_tok0) setTimeout(()=> initLoad({silent:true}), 400); }catch(_){}
+try{ const _tok0=tok(); if(_tok0 && !isPreviewToken(_tok0)) setTimeout(()=> runInitLoad({silent:true}), 400); }catch(_){}
 </script>
 <!-- Terminal Modal (shared bastion WS — same as devices.html) -->
 <div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">
