@@ -1,3 +1,18 @@
+## [0.9.0] - 2026-10-13
+### Added
+- Alerts & Notifications P1: DB schema `004_alerts.sql` — `alert_rules` (metric/operator/threshold/severity, scope global/group/device, cooldown, notify_channel_ids), `alert_events` (state machine firing → acknowledged → resolved + auto-resolve), `alert_channels` (webhook/telegram/email/in_app), `alert_logs` (audit delivery). Unique index `uq_alert_*` idempotent. Seed 5 rules (Device Offline critical offline, High Latency latency>200ms warning, Packet Loss >5% warning, High CPU >85% warning, High Memory >90% warning) + 2 channels (In-App enabled, Webhook placeholder disabled) + backfill `roles.menu_permissions alerts:true`.
+- Poller alert engine: `evaluateAlerts()` every tick — loads enabled rules, filters by device/group scope, eval numeric `evalNumeric()` + status `offline/online`, checks existing firing/acknowledged to respect cooldown, INSERT firing event + Redis pub `alerts` + per-`alert:{device}` + channel log + async `deliverWebhookChannels()` POST; else auto-resolves when condition clears + pub resolved. `Device.GroupID` added, `tick()` query now selects `d.group_id::text`, imports `bytes/database/sql/encoding/json/net/http/strings`. Panic-guarded `tryEvaluateAlerts()`.
+
+### Added — API
+- Routes: `GET/POST /api/alert-rules`, `PUT/DELETE /api/alert-rules/:id`, `GET /api/alert-events` + alias `GET /api/alerts` (filters status/severity/device_id/limit), `POST /api/alert-events/:id/ack` + alias `POST /api/alerts/:id/ack`, `POST /api/alert-events/:id/resolve` + alias, `GET/POST /api/alert-channels`, `PUT/DELETE /api/alert-channels/:id`, `GET /api/alerts/summary` (counts firing/acknowledged/resolved/critical/warning). Menu guard `alerts` (events/summary also allow `dashboard` fallback). Imports patched `strconv` + `database/sql` for NullTime/NullFloat.
+
+### Added — Frontend
+- Page `app/frontend/alerts.html` (58331 chars, 718 lines) — canonical sidebar sync (navy/dark/sbToggle 14px/274px, overlay, devSub), bell badge `#alertBell` + top firing badge, 4 summary cards (Firing/Acknowledged/Resolved/Critical-Warning), tabs Events/Rules/Channels (`#events/#rules/#channels` + localStorage `nms_alert_view`), Events filter status/severity/device + search debounced + ack/resolve actions, Rules table (condition/scope/enabled/cooldown) + modal (metric/operator/threshold dynamic sync, group/device scope, cooldown, notify channels checklist), Channels table + modal (type webhook/telegram/email/in_app, config JSON, enabled). Poll 15s summary+events, `node --check OK`.
+
+### Changed
+- Sidebar nav in `dashboard/devices/topology/users-roles` — placeholder `alert('Alerts — P1 next')` → real `<a href="alerts.html">Alerts</a>` (non-on; Alerts page marks `class="on"`). Verified `href="alerts.html"` ×1 per file, `div` balanced, `sbToggle` 15 refs intact.
+
+
 ## [0.8.0] - 2026-10-13
 ### Changed
 - Device-list (view-devices) rapikan: header 2-baris → 1 baris rapi dengan border-bottom, pill `devCount`, search dengan icon 🔍 (`padding-left 32px`), select `filterGroup`/`filterRack` sizing konsisten, tombol refresh & +Device aligned.

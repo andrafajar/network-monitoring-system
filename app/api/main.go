@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,6 +136,22 @@ func main(){
 		// metrics
 		pr.Get("/api/metrics/device/{id}", handleDeviceMetrics)
 		pr.Get("/api/metrics/link/{id}", handleLinkMetrics)
+		// alerts P1
+		pr.Get("/api/alert-rules", handleListAlertRules)
+		pr.Post("/api/alert-rules", handleCreateAlertRule)
+		pr.Put("/api/alert-rules/{id}", handleUpdateAlertRule)
+		pr.Delete("/api/alert-rules/{id}", handleDeleteAlertRule)
+		pr.Get("/api/alert-events", handleListAlertEvents)
+		pr.Get("/api/alerts", handleListAlertEvents)
+		pr.Post("/api/alert-events/{id}/ack", handleAckAlert)
+		pr.Post("/api/alert-events/{id}/resolve", handleResolveAlert)
+		pr.Post("/api/alerts/{id}/ack", handleAckAlert)
+		pr.Post("/api/alerts/{id}/resolve", handleResolveAlert)
+		pr.Get("/api/alert-channels", handleListAlertChannels)
+		pr.Post("/api/alert-channels", handleCreateAlertChannel)
+		pr.Put("/api/alert-channels/{id}", handleUpdateAlertChannel)
+		pr.Delete("/api/alert-channels/{id}", handleDeleteAlertChannel)
+		pr.Get("/api/alerts/summary", handleAlertSummary)
 		// bastion
 		pr.Get("/api/bastion/ssh", handleBastionSSH)
 		pr.Get("/api/bastion/telnet", handleBastionTelnet)
@@ -798,6 +815,214 @@ func handleLinkMetrics(w http.ResponseWriter, r *http.Request){
 	for rows!=nil&&rows.Next(){ var t time.Time; var inb,outb int64; rows.Scan(&t,&inb,&outb); out=append(out, map[string]any{"time":t,"in_bps":inb,"out_bps":outb})}
 	if out==nil{out=[]map[string]any{}}
 	jsonWrite(w,out)
+}
+
+
+
+func handleListAlertRules(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	rows,_:= db.Query(r.Context(), `SELECT id::text, tenant_id::text, name, description, enabled, metric, operator, threshold, severity, group_id::text, device_id, cooldown_sec, COALESCE(notify_channel_ids::text,'{}') FROM alert_rules ORDER BY created_at DESC`)
+	defer func(){ if rows!=nil{ rows.Close()} }()
+	var out []map[string]any
+	for rows!=nil && rows.Next(){
+		var id, tenant, name, desc, metric, op, sev string
+		var enabled bool
+		var thr sql.NullFloat64
+		var gid, did sql.NullString
+		var cd sql.NullInt32
+		var notifyRaw sql.NullString
+		rows.Scan(&id,&tenant,&name,&desc,&enabled,&metric,&op,&thr,&sev,&gid,&did,&cd,&notifyRaw)
+		thrVal:= any(nil); if thr.Valid { thrVal=thr.Float64 }
+		cdVal:= 300; if cd.Valid { cdVal=int(cd.Int32) }
+		nids:= []string{}
+		if notifyRaw.Valid && notifyRaw.String!="" && notifyRaw.String!="{}" {
+			s:= strings.Trim(notifyRaw.String,"{}")
+			if s!=""{ for _,p:=range strings.Split(s,","){ p=strings.TrimSpace(p); if p!=""{ nids=append(nids,p)}}}
+		}
+		out=append(out, map[string]any{"id":id,"tenant_id":tenant,"name":name,"description":desc,"enabled":enabled,"metric":metric,"operator":op,"threshold":thrVal,"severity":sev,"group_id":func()any{if gid.Valid{return gid.String};return nil}(),"device_id":func()any{if did.Valid{return did.String};return nil}(),"cooldown_sec":cdVal,"notify_channel_ids":nids})
+	}
+	if out==nil{ out=[]map[string]any{}}
+	jsonWrite(w,out)
+}
+func handleCreateAlertRule(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	var req struct{
+		Name string `json:"name"`
+		Description string `json:"description"`
+		Metric string `json:"metric"`
+		Operator string `json:"operator"`
+		Threshold *float64 `json:"threshold"`
+		Severity string `json:"severity"`
+		Enabled *bool `json:"enabled"`
+		GroupID *string `json:"group_id"`
+		DeviceID *string `json:"device_id"`
+		Cooldown *int `json:"cooldown_sec"`
+		NotifyIDs []string `json:"notify_channel_ids"`
+	}
+	if err:=readJSON(r,&req); err!=nil || req.Name=="" || req.Metric=="" { jsonError(w,400,"name and metric required"); return }
+	if req.Operator==""{ req.Operator=">"}
+	if req.Severity==""{ req.Severity="warning"}
+	enabled:=true; if req.Enabled!=nil{ enabled=*req.Enabled}
+	cd:=300; if req.Cooldown!=nil && *req.Cooldown>0{ cd=*req.Cooldown}
+	var thr any; if req.Threshold!=nil{ thr=*req.Threshold} else { thr=nil}
+	var gid any; if req.GroupID!=nil && *req.GroupID!=""{ gid=*req.GroupID} else { gid=nil}
+	var did any; if req.DeviceID!=nil && *req.DeviceID!=""{ did=*req.DeviceID} else { did=nil}
+	notifyArr:="{}"
+	if len(req.NotifyIDs)>0{
+		notifyArr="{"+strings.Join(req.NotifyIDs,",")+"}"
+	}
+	var tenantID string
+	_ = db.QueryRow(r.Context(), "SELECT id::text FROM tenants WHERE name='default' LIMIT 1").Scan(&tenantID)
+	if tenantID==""{ tenantID="00000000-0000-0000-0000-000000000000"}
+	var id string
+	err:= db.QueryRow(r.Context(), `INSERT INTO alert_rules(tenant_id, name, description, metric, operator, threshold, severity, enabled, group_id, device_id, cooldown_sec, notify_channel_ids) VALUES($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9::uuid,$10,$11,$12::uuid[]) RETURNING id::text`, tenantID, req.Name, req.Description, req.Metric, req.Operator, thr, req.Severity, enabled, gid, did, cd, notifyArr).Scan(&id)
+	if err!=nil{ jsonError(w,500,err.Error()); return}
+	jsonWrite(w, map[string]any{"id":id})
+}
+func handleUpdateAlertRule(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	var req map[string]any
+	_ = readJSON(r,&req)
+	if v,ok:=req["name"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET name=$1, updated_at=now() WHERE id::text=$2", v, id)}
+	if v,ok:=req["description"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET description=$1, updated_at=now() WHERE id::text=$2", v, id)}
+	if v,ok:=req["metric"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET metric=$1, updated_at=now() WHERE id::text=$2", v, id)}
+	if v,ok:=req["operator"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET operator=$1, updated_at=now() WHERE id::text=$2", v, id)}
+	if v,ok:=req["threshold"]; ok{
+		if v==nil{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET threshold=NULL, updated_at=now() WHERE id::text=$1", id)
+		} else if f,ok:=v.(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET threshold=$1, updated_at=now() WHERE id::text=$2", f, id)}}
+	if v,ok:=req["severity"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET severity=$1, updated_at=now() WHERE id::text=$2", v, id)}
+	if v,ok:=req["enabled"].(bool); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET enabled=$1, updated_at=now() WHERE id::text=$2", v, id)}
+	if v,ok:=req["group_id"]; ok{
+		if v==nil || v==""{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET group_id=NULL, updated_at=now() WHERE id::text=$1", id)
+		} else if s,ok:=v.(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET group_id=$1::uuid, updated_at=now() WHERE id::text=$2", s, id)}}
+	if v,ok:=req["device_id"]; ok{
+		if v==nil || v==""{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET device_id=NULL, updated_at=now() WHERE id::text=$1", id)
+		} else if s,ok:=v.(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET device_id=$1, updated_at=now() WHERE id::text=$2", s, id)}}
+	if v,ok:=req["cooldown_sec"]; ok{
+		if f,ok:=v.(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET cooldown_sec=$1, updated_at=now() WHERE id::text=$2", int(f), id)}}
+	if v,ok:=req["notify_channel_ids"]; ok{
+		if v==nil{ _,_=db.Exec(r.Context(),"UPDATE alert_rules SET notify_channel_ids='{}', updated_at=now() WHERE id::text=$1", id)
+		} else if arr,ok:=v.([]any); ok{
+			var ids []string; for _,x:=range arr{ if s,ok:=x.(string); ok{ ids=append(ids,s)}}
+			narr:="{"+strings.Join(ids,",")+"}"
+			_,_=db.Exec(r.Context(),"UPDATE alert_rules SET notify_channel_ids=$1::uuid[], updated_at=now() WHERE id::text=$2", narr, id)
+		} else if arr2,ok:=v.([]string); ok{
+			_,_=db.Exec(r.Context(),"UPDATE alert_rules SET notify_channel_ids=$1::uuid[], updated_at=now() WHERE id::text=$2", "{"+strings.Join(arr2,",")+"}", id)
+		}}
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleDeleteAlertRule(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	_,_= db.Exec(r.Context(),"DELETE FROM alert_rules WHERE id::text=$1", id)
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleListAlertEvents(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { if _,ok2:=requireMenu(w,r,"dashboard"); !ok2{ return}}
+	q:= r.URL.Query()
+	status:= q.Get("status")
+	severity:= q.Get("severity")
+	device:= q.Get("device_id")
+	limitS:= q.Get("limit")
+	lim:= 100
+	if limitS!=""{ if v,err:=strconv.Atoi(limitS); err==nil && v>0 && v<=500{ lim=v}}
+	query:= "SELECT e.id::text, e.tenant_id::text, e.rule_id::text, COALESCE(r.name,''), e.device_id, e.group_id::text, e.severity, e.status, e.message, e.metric, e.value, e.threshold, e.fired_at, e.acknowledged_at, e.resolved_at, COALESCE(d.name,''), COALESCE(d.ip,'') FROM alert_events e LEFT JOIN alert_rules r ON r.id=e.rule_id LEFT JOIN devices d ON d.id=e.device_id WHERE 1=1"
+	args:= []any{}
+	idx:=1
+	if status!=""{
+		query+= fmt.Sprintf(" AND e.status=$%d", idx); args=append(args,status); idx++
+	}
+	if severity!=""{
+		query+= fmt.Sprintf(" AND e.severity=$%d", idx); args=append(args,severity); idx++
+	}
+	if device!=""{
+		query+= fmt.Sprintf(" AND e.device_id=$%d", idx); args=append(args,device); idx++
+	}
+	query+= fmt.Sprintf(" ORDER BY e.fired_at DESC LIMIT $%d", idx); args=append(args, lim)
+	rows,_:= db.Query(r.Context(), query, args...)
+	defer func(){ if rows!=nil{rows.Close()}}()
+	var out []map[string]any
+	for rows!=nil && rows.Next(){
+		var id, tenant, ruleID, ruleName, devID, grp, sev, st, msg, metric, devName, devIP string
+		var grpNull sql.NullString
+		var val, thr sql.NullFloat64
+		var fired, ack, resolved sql.NullTime
+		rows.Scan(&id,&tenant,&ruleID,&ruleName,&devID,&grpNull,&sev,&st,&msg,&metric,&val,&thr,&fired,&ack,&resolved,&devName,&devIP)
+		grp=""; if grpNull.Valid{ grp=grpNull.String}
+		out=append(out, map[string]any{"id":id,"tenant_id":tenant,"rule_id":ruleID,"rule_name":ruleName,"device_id":devID,"group_id":grp,"severity":sev,"status":st,"message":msg,"metric":metric,"value":func()any{if val.Valid{return val.Float64};return nil}(),"threshold":func()any{if thr.Valid{return thr.Float64};return nil}(),"fired_at":fired.Time,"acknowledged_at":func()any{if ack.Valid{return ack.Time};return nil}(),"resolved_at":func()any{if resolved.Valid{return resolved.Time};return nil}(),"device_name":devName,"device_ip":devIP})
+	}
+	if out==nil{ out=[]map[string]any{}}
+	jsonWrite(w,out)
+}
+func handleAckAlert(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	au,_:= getAuthUser(r.Context())
+	var uid any; if au!=nil{ uid=au.ID} else { uid=nil}
+	_,_= db.Exec(r.Context(), "UPDATE alert_events SET status='acknowledged', acknowledged_at=now(), acknowledged_by=$2::uuid WHERE id::text=$1 AND status='firing'", id, uid)
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleResolveAlert(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	_,_= db.Exec(r.Context(), "UPDATE alert_events SET status='resolved', resolved_at=now() WHERE id::text=$1 AND status IN ('firing','acknowledged')", id)
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleListAlertChannels(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	rows,_:= db.Query(r.Context(), "SELECT id::text, tenant_id::text, name, type, config::text, enabled, created_at FROM alert_channels ORDER BY created_at DESC")
+	defer func(){ if rows!=nil{rows.Close()}}()
+	var out []map[string]any
+	for rows!=nil && rows.Next(){
+		var id, tenant, name, typ, cfg string; var enabled bool; var created time.Time
+		rows.Scan(&id,&tenant,&name,&typ,&cfg,&enabled,&created)
+		var cfgObj any
+		_ = json.Unmarshal([]byte(cfg), &cfgObj)
+		if cfgObj==nil{ cfgObj=map[string]any{}}
+		out=append(out, map[string]any{"id":id,"tenant_id":tenant,"name":name,"type":typ,"config":cfgObj,"enabled":enabled,"created_at":created})
+	}
+	if out==nil{ out=[]map[string]any{}}
+	jsonWrite(w,out)
+}
+func handleCreateAlertChannel(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	var req struct{ Name string `json:"name"`; Type string `json:"type"`; Config map[string]any `json:"config"`; Enabled *bool `json:"enabled"`}
+	if err:=readJSON(r,&req); err!=nil||req.Name==""||req.Type==""{ jsonError(w,400,"name and type required"); return}
+	cfgB,_:= json.Marshal(req.Config); if cfgB==nil{ cfgB=[]byte("{}")}
+	enabled:= true; if req.Enabled!=nil{ enabled=*req.Enabled}
+	var tenantID string
+	_ = db.QueryRow(r.Context(), "SELECT id::text FROM tenants WHERE name='default' LIMIT 1").Scan(&tenantID)
+	var id string
+	err:= db.QueryRow(r.Context(), "INSERT INTO alert_channels(tenant_id, name, type, config, enabled) VALUES($1::uuid,$2,$3,$4,$5) RETURNING id::text", tenantID, req.Name, req.Type, string(cfgB), enabled).Scan(&id)
+	if err!=nil{ jsonError(w,500,err.Error()); return}
+	jsonWrite(w, map[string]any{"id":id})
+}
+func handleUpdateAlertChannel(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	var req map[string]any; _=readJSON(r,&req)
+	if v,ok:=req["name"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_channels SET name=$1 WHERE id::text=$2", v, id)}
+	if v,ok:=req["type"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_channels SET type=$1 WHERE id::text=$2", v, id)}
+	if v,ok:=req["config"]; ok{ b,_:=json.Marshal(v); _,_=db.Exec(r.Context(),"UPDATE alert_channels SET config=$1 WHERE id::text=$2", string(b), id)}
+	if v,ok:=req["enabled"].(bool); ok{ _,_=db.Exec(r.Context(),"UPDATE alert_channels SET enabled=$1 WHERE id::text=$2", v, id)}
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleDeleteAlertChannel(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { return }
+	id:= chi.URLParam(r,"id")
+	_,_=db.Exec(r.Context(),"DELETE FROM alert_channels WHERE id::text=$1", id)
+	jsonWrite(w, map[string]any{"ok":true})
+}
+func handleAlertSummary(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"alerts"); !ok { if _,ok2:=requireMenu(w,r,"dashboard"); !ok2{ return}}
+	var firing, ack, resolved, crit, warn int
+	_ = db.QueryRow(r.Context(),"SELECT COUNT(*) FROM alert_events WHERE status='firing'").Scan(&firing)
+	_ = db.QueryRow(r.Context(),"SELECT COUNT(*) FROM alert_events WHERE status='acknowledged'").Scan(&ack)
+	_ = db.QueryRow(r.Context(),"SELECT COUNT(*) FROM alert_events WHERE status='resolved'").Scan(&resolved)
+	_ = db.QueryRow(r.Context(),"SELECT COUNT(*) FROM alert_events WHERE severity='critical' AND status IN ('firing','acknowledged')").Scan(&crit)
+	_ = db.QueryRow(r.Context(),"SELECT COUNT(*) FROM alert_events WHERE severity='warning' AND status IN ('firing','acknowledged')").Scan(&warn)
+	jsonWrite(w, map[string]any{"firing":firing,"acknowledged":ack,"resolved":resolved,"critical":crit,"warning":warn})
 }
 
 

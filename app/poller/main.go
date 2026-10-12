@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +49,7 @@ type Device struct {
 	Community string
 	Version   string
 	RackID    *string
+	GroupID   *string
 	Status    string
 }
 
@@ -106,7 +112,7 @@ func tick(global int) {
 	defer cancel()
 	rows, err := db.Query(ctx, `
 		SELECT d.id, d.name, d.ip, d.type, d.poll_interval,
-		       dg.poll_interval, d.snmp_community, COALESCE(d.snmp_version,'2c'), d.rack_id, COALESCE(d.status,'unknown')
+	       dg.poll_interval, d.snmp_community, COALESCE(d.snmp_version,'2c'), d.rack_id, d.group_id::text, COALESCE(d.status,'unknown')
 		FROM devices d
 		LEFT JOIN device_groups dg ON dg.id=d.group_id
 	`)
@@ -125,8 +131,8 @@ func tick(global int) {
 		var devPollNull, grpPollNull *int32
 		// simpler: scan into sql null via interface
 		var dp, gp sqlNullInt32
-		var rackNull sqlNullString
-		if err := rows.Scan(&id, &name, &ip, &typ, &dp, &gp, &comm, &ver, &rackNull, &status); err != nil {
+		var rackNull, groupNull sqlNullString
+		if err := rows.Scan(&id, &name, &ip, &typ, &dp, &gp, &comm, &ver, &rackNull, &groupNull, &status); err != nil {
 			// fallback try with dp/gp scan
 			continue
 		}
@@ -146,10 +152,15 @@ func tick(global int) {
 			s := rackNull.Str
 			rack = &s
 		}
+		var grp *string
+		if groupNull.Valid && groupNull.Str != "" {
+			s := groupNull.Str
+			grp = &s
+		}
 		devices = append(devices, Device{
 			ID: id, Name: name, IP: ip, Type: typ,
 			PollSec: devPoll, GroupPoll: grpPoll,
-			Community: comm, Version: ver, RackID: rack, Status: status,
+			Community: comm, Version: ver, RackID: rack, GroupID: grp, Status: status,
 		})
 	}
 	if len(devices) == 0 {
@@ -223,6 +234,8 @@ func pollDevice(d Device) {
 			rows.Close()
 		}
 	}
+	// evaluate alert rules (P1)
+	tryEvaluateAlerts(d, status, lat, loss, cpu, mem)
 	log.Printf("poll %s %s (%ds) -> %s lat=%.1f loss=%.0f%% snmp=%v", d.ID, d.IP, effectiveInterval(d, 30), status, lat, loss, didSNMP)
 }
 
@@ -448,6 +461,228 @@ func fetchCpuMem(g *gosnmp.GoSNMP, devID string) {
 	// MikroTik specific: .1.3.6.1.4.1.14988.1.1.3.10 cpu, .1.3.6.1.4.1.14988.1.1.3.12 mem free? try hrStorage
 	// hrStorageUsed .1.3.6.1.2.1.25.2.3.1.6 + hrStorageSize .1.3.6.1.2.1.25.2.3.1.5
 	_ = devID
+}
+
+
+// ── Alerts P1 engine ──
+type alertRule struct {
+	ID        string
+	TenantID  string
+	Metric    string
+	Operator  string
+	Threshold *float64
+	Severity  string
+	GroupID   *string
+	DeviceID  *string
+	Cooldown  int
+	NotifyIDs []string
+}
+
+func tryEvaluateAlerts(d Device, status string, lat, loss, cpu, mem float64) {
+	// fire-and-forget with panic guard — poll loop must not die on alert errors
+	defer func(){ if r:=recover(); r!=nil { log.Printf("alert eval panic %v device %s", r, d.ID) } }()
+	evaluateAlerts(d, status, lat, loss, cpu, mem)
+}
+
+func evaluateAlerts(d Device, status string, lat, loss, cpu, mem float64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	rows, err := db.Query(ctx, `SELECT id::text, tenant_id::text, metric, operator, threshold, severity, group_id::text, device_id, cooldown_sec, COALESCE(notify_channel_ids::text,'{}') FROM alert_rules WHERE enabled=true`)
+	if err != nil {
+		log.Printf("alert query rules fail: %v", err)
+		return
+	}
+	defer rows.Close()
+	var rules []alertRule
+	for rows.Next() {
+		var id, tenant, metric, op, sev string
+		var thr sql.NullFloat64
+		var gidNull, didNull sql.NullString
+		var cd sql.NullInt32
+		var notifyRaw sql.NullString
+		if err := rows.Scan(&id, &tenant, &metric, &op, &thr, &sev, &gidNull, &didNull, &cd, &notifyRaw); err != nil {
+			continue
+		}
+		var thrPtr *float64
+		if thr.Valid { v:= thr.Float64; thrPtr=&v }
+		var gidPtr *string
+		if gidNull.Valid && gidNull.String != "" { s:= gidNull.String; gidPtr=&s }
+		var didPtr *string
+		if didNull.Valid && didNull.String != "" { s:= didNull.String; didPtr=&s }
+		cdVal:= 300
+		if cd.Valid { cdVal = int(cd.Int32) }
+		var nids []string
+		if notifyRaw.Valid && notifyRaw.String != "" && notifyRaw.String != "{}" {
+			s:= strings.Trim(notifyRaw.String, "{}")
+			if s != "" {
+				for _, p := range strings.Split(s, ",") {
+					p = strings.TrimSpace(p)
+					if p != "" { nids = append(nids, p) }
+				}
+			}
+		}
+		rules = append(rules, alertRule{ID:id, TenantID:tenant, Metric:metric, Operator:op, Threshold:thrPtr, Severity:sev, GroupID:gidPtr, DeviceID:didPtr, Cooldown:cdVal, NotifyIDs:nids})
+	}
+	if len(rules)==0 { return }
+	for _, r := range rules {
+		// scope filter
+		if r.DeviceID != nil && *r.DeviceID != "" {
+			if *r.DeviceID != d.ID { continue }
+		} else if r.GroupID != nil && *r.GroupID != "" {
+			if d.GroupID == nil || *d.GroupID != *r.GroupID { continue }
+		}
+		// evaluate condition
+		var curVal float64
+		var hasVal bool
+		var met bool
+		switch r.Metric {
+		case "device_status":
+			if r.Operator == "offline" { met = (status == "offline") }
+			if r.Operator == "online" { met = (status == "online") }
+			if r.Operator == ">" || r.Operator == "=" { met = (status == "offline") }
+			curVal = 0
+			if status=="offline" { curVal=1 }
+			hasVal=true
+		case "latency":
+			curVal=lat; hasVal=true
+			met = evalNumeric(r.Operator, curVal, r.Threshold)
+		case "packet_loss":
+			curVal=loss; hasVal=true
+			met = evalNumeric(r.Operator, curVal, r.Threshold)
+		case "cpu":
+			curVal=cpu; hasVal=true
+			met = evalNumeric(r.Operator, curVal, r.Threshold)
+		case "mem":
+			curVal=mem; hasVal=true
+			met = evalNumeric(r.Operator, curVal, r.Threshold)
+		default:
+			continue
+		}
+		if !hasVal { continue }
+		// check existing firing/acknowledged
+		var evID string
+		var evStatus string
+		var firedAt time.Time
+		err := db.QueryRow(ctx, `SELECT id::text, status, fired_at FROM alert_events WHERE rule_id::text=$1 AND device_id=$2 AND status IN ('firing','acknowledged') ORDER BY fired_at DESC LIMIT 1`, r.ID, d.ID).Scan(&evID, &evStatus, &firedAt)
+		exists := err==nil
+		if met {
+			if exists {
+				// already firing — update value/threshold for freshness, respect cooldown (no duplicate)
+				_, _ = db.Exec(ctx, `UPDATE alert_events SET value=$1, threshold=$2 WHERE id::text=$3`, curVal, r.Threshold, evID)
+				continue
+			}
+			// create new firing event
+			msg := buildAlertMessage(r, d, status, curVal)
+			var thrVal any
+			if r.Threshold != nil { thrVal = *r.Threshold } else { thrVal = nil }
+			var gidAny any
+			if d.GroupID != nil { gidAny = *d.GroupID } else { gidAny = nil }
+			var valAny any = curVal
+			if r.Metric=="device_status" { valAny = curVal }
+			var newID string
+			err = db.QueryRow(ctx, `INSERT INTO alert_events(tenant_id, rule_id, device_id, group_id, severity, status, message, metric, value, threshold) VALUES($1::uuid,$2::uuid,$3,$4::uuid,$5,'firing',$6,$7,$8,$9) RETURNING id::text`, r.TenantID, r.ID, d.ID, gidAny, r.Severity, msg, r.Metric, valAny, thrVal).Scan(&newID)
+			if err != nil {
+				// fallback without group
+				err2 := db.QueryRow(ctx, `INSERT INTO alert_events(tenant_id, rule_id, device_id, severity, status, message, metric, value, threshold) VALUES($1::uuid,$2::uuid,$3,$4,'firing',$5,$6,$7,$8) RETURNING id::text`, r.TenantID, r.ID, d.ID, r.Severity, msg, r.Metric, valAny, thrVal).Scan(&newID)
+				if err2 != nil { log.Printf("alert insert fail rule %s dev %s: %v %v", r.ID, d.ID, err, err2); continue }
+			}
+			log.Printf("alert FIRING rule=%s dev=%s sev=%s msg=%s", r.ID, d.ID, r.Severity, msg)
+			// redis pub
+			if rdb != nil {
+				payload, _ := json.Marshal(map[string]any{"event_id":newID,"rule_id":r.ID,"device_id":d.ID,"severity":r.Severity,"status":"firing","message":msg,"metric":r.Metric,"value":curVal})
+				_ = rdb.Publish(ctx, "alerts", string(payload)).Err()
+				_ = rdb.Publish(ctx, "alert:"+d.ID, string(payload)).Err()
+			}
+			// delivery logs per channel (best-effort)
+			for _, cid := range r.NotifyIDs {
+				if cid=="" {continue}
+				_, _ = db.Exec(ctx, `INSERT INTO alert_logs(event_id, channel_id, channel_type, payload, status) VALUES($1::uuid,$2::uuid,'webhook',$3,'sent')`, newID, cid, fmt.Sprintf(`{"msg":%q}`, msg))
+			}
+			// stub webhook delivery if channel url present — async
+			go deliverWebhookChannels(r.NotifyIDs, msg, newID, r.Severity, d.ID)
+		} else {
+			// condition cleared — auto-resolve any firing/acknowledged
+			if exists {
+				_, _ = db.Exec(ctx, `UPDATE alert_events SET status='resolved', resolved_at=now() WHERE id::text=$1`, evID)
+				log.Printf("alert RESOLVED rule=%s dev=%s ev=%s", r.ID, d.ID, evID)
+				if rdb != nil {
+					payload, _ := json.Marshal(map[string]any{"event_id":evID,"rule_id":r.ID,"device_id":d.ID,"status":"resolved"})
+					_ = rdb.Publish(ctx, "alerts", string(payload)).Err()
+					_ = rdb.Publish(ctx, "alert:"+d.ID, string(payload)).Err()
+				}
+			}
+		}
+	}
+}
+
+func evalNumeric(op string, cur float64, thr *float64) bool {
+	if thr==nil { return false }
+	t:= *thr
+	switch op {
+	case ">": return cur > t
+	case ">=": return cur >= t
+	case "<": return cur < t
+	case "<=": return cur <= t
+	case "=", "==": return cur == t
+	case "!=": return cur != t
+	default: return cur > t
+	}
+}
+
+func buildAlertMessage(r alertRule, d Device, status string, cur float64) string {
+	if r.Metric=="device_status" {
+		if status=="offline" { return fmt.Sprintf("Device %s (%s) OFFLINE", d.Name, d.ID) }
+		return fmt.Sprintf("Device %s (%s) online", d.Name, d.ID)
+	}
+	thrStr:="?"
+	if r.Threshold!=nil { thrStr = fmt.Sprintf("%.1f", *r.Threshold) }
+	return fmt.Sprintf("%s %.1f %s %s on %s (%s) [%s]", r.Metric, cur, r.Operator, thrStr, d.Name, d.ID, r.Severity)
+}
+
+func deliverWebhookChannels(cids []string, msg, eventID, severity, deviceID string) {
+	if len(cids)==0 { return }
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	for _, cid := range cids {
+		var typ, cfgRaw string
+		err:= db.QueryRow(ctx, `SELECT type, config::text FROM alert_channels WHERE id::text=$1`, cid).Scan(&typ, &cfgRaw)
+		if err!=nil { continue }
+		if typ != "webhook" { continue }
+		var cfg map[string]any
+		_ = json.Unmarshal([]byte(cfgRaw), &cfg)
+		urlStr, _ := cfg["url"].(string)
+		if urlStr=="" { continue }
+		body, _ := json.Marshal(map[string]any{"event_id":eventID,"device_id":deviceID,"severity":severity,"message":msg,"time":time.Now().UTC()})
+		req, _ := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(body))
+		req.Header.Set("Content-Type","application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			_, _ = db.Exec(ctx, `INSERT INTO alert_logs(event_id, channel_id, channel_type, payload, status, error) VALUES($1::uuid,$2::uuid,'webhook',$3,'failed',$4)`, eventID, cid, string(body), err.Error())
+			continue
+		}
+		ioDiscard(resp.Body)
+		st:="sent"
+		errMsg:=""
+		if resp.StatusCode>=400 { st="failed"; errMsg=fmt.Sprintf("http %d", resp.StatusCode) }
+		_, _ = db.Exec(ctx, `INSERT INTO alert_logs(event_id, channel_id, channel_type, payload, status, error) VALUES($1::uuid,$2::uuid,'webhook',$3,$4,$5)`, eventID, cid, string(body), st, errMsg)
+	}
+}
+
+func ioDiscard(r interface{ Read([]byte)(int,error); Close() error}){ if r!=nil { var b [512]byte; for { _,e:=r.Read(b[:]); if e!=nil {break} }; r.Close() } }
+
+type sqlNullFloat64 struct { Float64 float64; Valid bool }
+func (n *sqlNullFloat64) Scan(v interface{}) error {
+	if v==nil { n.Valid=false; return nil }
+	switch x:=v.(type){
+	case float64: n.Float64=x; n.Valid=true
+	case float32: n.Float64=float64(x); n.Valid=true
+	case int64: n.Float64=float64(x); n.Valid=true
+	case int32: n.Float64=float64(x); n.Valid=true
+	case int: n.Float64=float64(x); n.Valid=true
+	case string: if f,err:= strconv.ParseFloat(x,64); err==nil { n.Float64=f; n.Valid=true }
+	default: n.Valid=false
+	}
+	return nil
 }
 
 func formatBps(b int64) string {
