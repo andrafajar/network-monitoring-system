@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.7.0 — 2026-10-13
+- **Sidebar minimal + floating toggle:** ganti emoji → SVG stroke 1.7 minimalis (18px) untuk semua menu; sidebar `position:fixed` + `transform:translateX(-100%)` saat minimize (beneran hilang seperti versi HP), tombol floating `#sbToggle` ☰/✕ di pojok kiri atas (14px saat minimize, 274px saat expanded desktop, tetap 14px di mobile ≤1000px), overlay `.sidebar-overlay.show`; `#sideToggle`/`#topMinBtn` di-hide; persist `nms_sidebar_mini`/`nms_sidebar_theme`/`nms_dark`
+- **Devices → submenu expand/collapse:** `Devices` jadi parent `.has-sub` dengan chevron rotate, submenu `Device List / Racks / Groups / Links` (`devices.html#devices|#racks|#groups|#links`), toggle `toggleDevSub(event)` persist `nms_dev_sub`, auto-expand saat klik dari minimized, sinkron dengan hash & `localStorage nms_dev_view`
+- **Devices page pecah 4 view + tabs:** tab bar `.tabs` sticky (`Device List | Racks | Groups | Links`), 4 container `#view-devices|#view-racks|#view-groups|#view-links`, router `switchView(name)` + `syncViewFromHash()` + `hashchange` listener, judul topbar dinamis, validasi `node --check` 4 halaman OK
+- **Groups: kelola anggota via checklist panel (sesuai request):** layout 2 kolom `#groupsLayout` (320px + 1fr, collapse ke 1 kolom ≤900px); kiri: list groups dengan `groupSearch` + badge `N devices` + select click; kanan: panel `groupDevChecklist` dengan `groupDevSearch` + `Pilih semua / Kosongkan` + `Simpan Anggota` batch `PUT /api/devices/{id}` (diff group_id), hint `Belum disimpan`/`Tersimpan`, `selectedGroupId` state, auto-refresh ke `renderGroupsList/renderDevices`
+- **Device List & Racks search:** `devSearch` (name/IP/ID), `rackSearch` (name/ID/lokasi), `groupSearch`, filter `filterGroup/filterRack` tetap, `devCount` sinkron, escaping via `esc()`
+- **4 file sinkron:** `dashboard.html / devices.html / topology.html / users-roles.html` — sidebar HTML, CSS minimal, JS IIFE `#sbToggle` konsisten; `devices.html` len 73174, `dashboard` 62934, `topology` 63467, `users-roles` 42568; `div` balance -2 konsisten (pre-existing)
+
 ## v0.6.0 — 2026-10-13
 - Frontend Terminal bastion split-screen: `xterm.js@5.3.0` + FitAddon 2-pane (`cols1/cols2`) popup `#termModal` + WebFig iframe `#webfigModal` konsisten di `devices.html` & `topology.html` (WS `/api/bastion/ssh|telnet|mikrotik-api`, creds server-side, `termWSUrl` token query, `createTermPane`/`termClosePane`/`termReconnect`/`termSplitToggle`, `openTerminal`/`openWebFig`/`openWebConsole` aliases)
 - Devices: `renderDevices` action SSH/Telnet/API/WebFig per-row; Topology: `showSelection` + `dblclick` → SSH/WebFig via `openTermTopology`/`openWebFigTopology` (mock→real dev map), `#webfigFrame` onerror fallback ke `/api/bastion/webconsole`
