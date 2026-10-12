@@ -17,6 +17,8 @@ services:
 
   api:
     build: ./app/api
+    cap_add:
+      - NET_RAW
     ports:
       - "8080:8080"
     depends_on: [db, redis]
@@ -34,6 +36,8 @@ services:
 
   poller:
     build: ./app/poller
+    cap_add:
+      - NET_RAW
     depends_on: [db, redis, api]
     env_file: [.env]
     environment:

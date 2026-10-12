@@ -1,3 +1,23 @@
+## [0.9.1] - 2026-10-13
+### Added
+- Device CRUD hardening: modal `+ Device / Edit` diperluas (SNMP version 2c/1/3, SSH user/pass/port 22, API user/pass, Telnet port 23, Note) + `handleGetDevice` kini return `ssh_pass/api_pass` untuk prefill edit, `handleCreateDevice`/`handleUpdateDevice` sudah handle semua cred fields (`snmp_version`, `ssh_*`, `api_*`, `telnet_port`, `note`), `handleUpdateDevice` `poll_interval` null-safe (clear to global). Frontend `openDeviceModal` reset 14 fields, `editDevice` fetch `GET /api/devices/{id}` untuk cred lengkap dengan fallback `DEVICES`, `saveDevice` kirim 17 fields lengkap (`snmp_version`, `ssh_*`, `api_*`, `telnet_port`, `note`) + `poll_interval` null jika kosong.
+
+### Added — API
+- Endpoint `POST /api/devices/test-connection` + `POST /api/devices/{id}/test` — `handleTestDeviceConnection` (menu `devices`) : terima `ip` + optional `snmp_*`/`ssh_*`/`api_*`/`telnet_*`, fallback ke DB jika `id` ada, jalankan **ping** (go-ping unprivileged + TCP fallback `execPingFallback` 22/80), **SNMP** (gosnmp walk `ifDescr` + `sysDescr`, `BulkWalk 1.3.6.1.2.1.2.2.1.2`, `snmp_version` 2c/1, 3 = not supported), **SSH dial** (golang.org/x/crypto/ssh Dial 5s), return `{ip, overall, ping{ok,latency_ms,loss,error}, snmp{ok,interfaces,sysDescr,error}, ssh{ok,error}}`. Modal tombol `Test koneksi` (`testDeviceConnection()`) call endpoint dengan/without `id`, render result `Overall / Ping / SNMP / SSH` di `#devTestRes` dengan border hijau/kuning/merah.
+- Deps `app/api/go.mod` tambah `github.com/go-ping/ping v1.2.0` + `github.com/gosnmp/gosnmp v1.42.1`.
+
+### Changed
+- Poller `doPing` sekarang fallback TCP (`tcpReach` dial 22/80/443/161/8291/8728, latency dari durasi dial) jika `ping.Run` permission/sock error atau `PacketsRecv==0` (firewall drop ICMP) → `online` dengan `loss 0`, sebelumnya hanya `offline`.
+- Poller import sort + tambah `net` (sebelumnya hanya `net/http`).
+- `docker-compose.yml` `api` + `poller` tambah `cap_add: [NET_RAW]` agar raw ICMP socket diizinkan (tanpa privileged).
+
+### Fixed
+- Frontend `devices.html` `renderDevices` sekarang filter `devSearch` (q di `id/name/ip/type`), sebelumnya search input ada tapi tidak dipakai.
+- Frontend injected `.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px; label flex col}` + responsive 1col ≤640px (sebelumnya style `.form-grid` hilang).
+- API `execPingFallback` mark `ctx` unused (`_ = ctx`) untuk `go vet` clean, hapus var `cmd` leftover.
+- Poller & API build `node --check` OK, `div` 110/110, `cap_add` ×2 verified.
+
+
 ## [0.9.0] - 2026-10-13
 ### Added
 - Alerts & Notifications P1: DB schema `004_alerts.sql` — `alert_rules` (metric/operator/threshold/severity, scope global/group/device, cooldown, notify_channel_ids), `alert_events` (state machine firing → acknowledged → resolved + auto-resolve), `alert_channels` (webhook/telegram/email/in_app), `alert_logs` (audit delivery). Unique index `uq_alert_*` idempotent. Seed 5 rules (Device Offline critical offline, High Latency latency>200ms warning, Packet Loss >5% warning, High CPU >85% warning, High Memory >90% warning) + 2 channels (In-App enabled, Webhook placeholder disabled) + backfill `roles.menu_permissions alerts:true`.

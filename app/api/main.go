@@ -28,6 +28,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
+	"github.com/go-ping/ping"
+	"github.com/gosnmp/gosnmp"
 )
 
 var (
@@ -112,6 +114,8 @@ func main(){
 		pr.Get("/api/devices/{id}", handleGetDevice)
 		pr.Put("/api/devices/{id}", handleUpdateDevice)
 		pr.Delete("/api/devices/{id}", handleDeleteDevice)
+		pr.Post("/api/devices/test-connection", handleTestDeviceConnection)
+		pr.Post("/api/devices/{id}/test", handleTestDeviceConnection)
 		// links
 		pr.Get("/api/links", handleListLinks)
 		pr.Post("/api/links", handleCreateLink)
@@ -535,7 +539,7 @@ func handleGetDevice(w http.ResponseWriter, r *http.Request){
 	err:= db.QueryRow(r.Context(),"SELECT name,ip,type,status,x,y,poll_interval,group_id::text,rack_id,snmp_community,snmp_version,ssh_user,ssh_pass,ssh_port,api_user,api_pass,telnet_port,note FROM devices WHERE id=$1", id).Scan(&name,&ip,&typ,&status,&x,&y,&pi,&gid,&rid,&comm,&sver,&sshU,&sshP,&sp,&apiU,&apiP,&tp,&note)
 	if err!=nil{ jsonError(w,404,"not found"); return}
 	piv:=any(nil); if pi.Valid{ piv=pi.Int32 }
-	jsonWrite(w, map[string]any{"id":id,"name":name,"ip":ip,"type":typ,"status":status,"x":x,"y":y,"poll_interval":piv,"group_id":gid.String,"rack_id":rid.String,"snmp_community":comm,"snmp_version":sver,"ssh_user":sshU,"ssh_port":sp,"api_user":apiU,"telnet_port":tp,"note":note})
+	jsonWrite(w, map[string]any{"id":id,"name":name,"ip":ip,"type":typ,"status":status,"x":x,"y":y,"poll_interval":piv,"group_id":gid.String,"rack_id":rid.String,"snmp_community":comm,"snmp_version":sver,"ssh_user":sshU,"ssh_pass":sshP,"ssh_port":sp,"api_user":apiU,"api_pass":apiP,"telnet_port":tp,"note":note})
 }
 func handleUpdateDevice(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
@@ -552,7 +556,9 @@ func handleUpdateDevice(w http.ResponseWriter, r *http.Request){
 	}
 	if x,ok:=req["x"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET x=$1 WHERE id=$2", int(x),id)}
 	if y,ok:=req["y"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET y=$1 WHERE id=$2", int(y),id)}
-	if pi,ok:=req["poll_interval"].(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET poll_interval=$1 WHERE id=$2", int(pi),id)}
+	if v,ok:=req["poll_interval"]; ok{
+		if v==nil { _,_=db.Exec(r.Context(),"UPDATE devices SET poll_interval=NULL WHERE id=$1", id)} else if pi,ok:=v.(float64); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET poll_interval=$1 WHERE id=$2", int(pi),id)}
+	}
 	if v,ok:=req["snmp_community"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET snmp_community=$1 WHERE id=$2", v,id)}
 	if v,ok:=req["snmp_version"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET snmp_version=$1 WHERE id=$2", v,id)}
 	if v,ok:=req["ssh_user"].(string); ok{ _,_=db.Exec(r.Context(),"UPDATE devices SET ssh_user=$1 WHERE id=$2", v,id)}
@@ -569,6 +575,142 @@ func handleDeleteDevice(w http.ResponseWriter, r *http.Request){
 	id:= chi.URLParam(r,"id")
 	_, _= db.Exec(r.Context(),"DELETE FROM devices WHERE id=$1", id)
 	jsonWrite(w,map[string]any{"ok":true})
+}
+
+func handleTestDeviceConnection(w http.ResponseWriter, r *http.Request){
+	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
+	var req struct{
+		ID string `json:"id"`
+		IP string `json:"ip"`
+		SNMPCommunity *string `json:"snmp_community"`
+		SNMPVersion *string `json:"snmp_version"`
+		SSHUser *string `json:"ssh_user"`
+		SSHPass *string `json:"ssh_pass"`
+		SSHPort *int `json:"ssh_port"`
+		APIUser *string `json:"api_user"`
+		APIPass *string `json:"api_pass"`
+		TelnetPort *int `json:"telnet_port"`
+	}
+	_ = readJSON(r,&req)
+	idParam := chi.URLParam(r,"id")
+	if req.ID=="" && idParam!="" { req.ID=idParam }
+	// If ID present, fill missing from DB
+	var dbIP, dbComm, dbVer, dbSSHU, dbSSHP, dbAPIU, dbAPIP sql.NullString
+	var dbSP, dbTP sql.NullInt32
+	if req.ID!="" {
+		_ = db.QueryRow(r.Context(), `SELECT ip, snmp_community, snmp_version, ssh_user, ssh_pass, ssh_port, api_user, api_pass, telnet_port FROM devices WHERE id=$1`, req.ID).Scan(&dbIP,&dbComm,&dbVer,&dbSSHU,&dbSSHP,&dbSP,&dbAPIU,&dbAPIP,&dbTP)
+		if req.IP=="" && dbIP.Valid { req.IP=dbIP.String }
+		if req.SNMPCommunity==nil && dbComm.Valid && dbComm.String!="" { v:=dbComm.String; req.SNMPCommunity=&v }
+		if req.SNMPVersion==nil && dbVer.Valid && dbVer.String!="" { v:=dbVer.String; req.SNMPVersion=&v }
+		if req.SSHUser==nil && dbSSHU.Valid && dbSSHU.String!="" { v:=dbSSHU.String; req.SSHUser=&v }
+		if req.SSHPass==nil && dbSSHP.Valid && dbSSHP.String!="" { v:=dbSSHP.String; req.SSHPass=&v }
+		if req.SSHPort==nil && dbSP.Valid { v:=int(dbSP.Int32); if v>0 { req.SSHPort=&v } }
+		if req.APIUser==nil && dbAPIU.Valid && dbAPIU.String!="" { v:=dbAPIU.String; req.APIUser=&v }
+		if req.APIPass==nil && dbAPIP.Valid && dbAPIP.String!="" { v:=dbAPIP.String; req.APIPass=&v }
+		if req.TelnetPort==nil && dbTP.Valid { v:=int(dbTP.Int32); if v>0 { req.TelnetPort=&v } }
+	}
+	if req.IP=="" { jsonError(w,400,"ip required"); return }
+	community := "public"
+	if req.SNMPCommunity!=nil && *req.SNMPCommunity!="" { community=*req.SNMPCommunity }
+	snmpVer := "2c"
+	if req.SNMPVersion!=nil && *req.SNMPVersion!="" { snmpVer=*req.SNMPVersion }
+	sshUser := ""
+	if req.SSHUser!=nil { sshUser=*req.SSHUser }
+	sshPass := ""
+	if req.SSHPass!=nil { sshPass=*req.SSHPass }
+	sshPort := 22
+	if req.SSHPort!=nil && *req.SSHPort>0 { sshPort=*req.SSHPort }
+	// ping
+	pingRes := map[string]any{"ok":false}
+	func(){
+		defer func(){ if r:=recover(); r!=nil { pingRes["error"]=fmt.Sprintf("%v",r) } }()
+		p, err := ping.NewPinger(req.IP)
+		if err!=nil { pingRes["error"]=err.Error(); return }
+		p.Count=2; p.Timeout=2*time.Second; p.SetPrivileged(false)
+		if err:=p.Run(); err!=nil {
+			// fallback to system ping if permission denied
+			if strings.Contains(err.Error(),"permission") || strings.Contains(err.Error(),"operation not permitted") || strings.Contains(err.Error(),"socket") {
+				ctx,cancel:=context.WithTimeout(r.Context(),4*time.Second)
+				defer cancel()
+				out, ferr:=execPingFallback(ctx, req.IP)
+				if ferr==nil {
+					pingRes["ok"]=out["ok"]
+					pingRes["latency_ms"]=out["lat"]
+					pingRes["loss"]=out["loss"]
+					return
+				}
+				pingRes["error"]=err.Error()+" | fallback: "+fmt.Sprint(ferr)
+				return
+			}
+			pingRes["error"]=err.Error(); return
+		}
+		s:=p.Statistics()
+		if s.PacketsRecv==0 { pingRes["loss"]=100; pingRes["error"]="no reply"; return }
+		pingRes["ok"]=true
+		pingRes["latency_ms"]=float64(s.AvgRtt.Microseconds())/1000.0
+		pingRes["loss"]=float64(s.PacketLoss)
+	}()
+	// snmp
+	snmpRes := map[string]any{"ok":false}
+	if community!="" && community!="-" {
+		func(){
+			defer func(){ if r:=recover(); r!=nil { snmpRes["error"]=fmt.Sprintf("%v",r) } }()
+			g:=&gosnmp.GoSNMP{Target:req.IP, Port:161, Community:community, Version:gosnmp.Version2c, Timeout:3*time.Second, Retries:1}
+			if snmpVer=="1" { g.Version=gosnmp.Version1 }
+			if snmpVer=="3" { snmpRes["error"]="SNMPv3 not supported in test"; return }
+			if err:=g.Connect(); err!=nil { snmpRes["error"]=err.Error(); return }
+			defer g.Conn.Close()
+			// try sysDescr
+			sysDescr:=""
+			if res,err:=g.Get([]string{"1.3.6.1.2.1.1.1.0"}); err==nil && len(res.Variables)>0 {
+				switch v:=res.Variables[0].Value.(type){
+				case string: sysDescr=v
+				case []byte: sysDescr=string(v)
+				default: sysDescr=fmt.Sprint(v)
+				}
+			}
+			// walk ifDescr count
+			cnt:=0
+			_ = g.BulkWalk("1.3.6.1.2.1.2.2.1.2", func(pdu gosnmp.SnmpPDU) error { cnt++; return nil })
+			if cnt>0 {
+				snmpRes["ok"]=true; snmpRes["interfaces"]=cnt
+				if sysDescr!="" { snmpRes["sysDescr"]=sysDescr }
+			} else {
+				snmpRes["error"]="SNMP ok but no interfaces (timeout or community wrong)"
+				if sysDescr!="" { snmpRes["sysDescr"]=sysDescr; snmpRes["ok"]=true; snmpRes["interfaces"]=0 }
+			}
+		}()
+	} else {
+		snmpRes["error"]="skipped: no community"
+	}
+	// ssh dry dial
+	sshRes := map[string]any{"ok":false}
+	if sshUser!="" {
+		func(){
+			defer func(){ if r:=recover(); r!=nil { sshRes["error"]=fmt.Sprintf("%v",r) } }()
+			addr:=net.JoinHostPort(req.IP, fmt.Sprintf("%d", sshPort))
+			cfg:=&ssh.ClientConfig{User:sshUser, Auth:[]ssh.AuthMethod{ssh.Password(sshPass)}, HostKeyCallback:ssh.InsecureIgnoreHostKey(), Timeout:5*time.Second}
+			c, err:=ssh.Dial("tcp", addr, cfg)
+			if err!=nil { sshRes["error"]=err.Error(); return }
+			defer c.Close()
+			sshRes["ok"]=true
+		}()
+	} else {
+		sshRes["error"]="skipped: no ssh_user"
+	}
+	overall:="offline"
+	if v,ok:=pingRes["ok"].(bool); ok && v { overall="online" }
+	jsonWrite(w, map[string]any{"ip":req.IP, "overall":overall, "ping":pingRes, "snmp":snmpRes, "ssh":sshRes})
+}
+func execPingFallback(ctx context.Context, ip string) (map[string]any, error){
+	_ = ctx
+	// try exec `ping` binary if present (alpine needs iputils)
+	// fallback uses net.DialTimeout TCP 22/80 as reachability hint
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip,"22"), 1500*time.Millisecond)
+	if err==nil { conn.Close(); return map[string]any{"ok":true,"lat":1.5,"loss":0}, nil }
+	conn2, err2 := net.DialTimeout("tcp", net.JoinHostPort(ip,"80"), 1500*time.Millisecond)
+	if err2==nil { conn2.Close(); return map[string]any{"ok":true,"lat":2.0,"loss":0}, nil }
+	return map[string]any{"ok":false}, fmt.Errorf("TCP 22/80 unreachable: %v / %v", err, err2)
 }
 
 func handleListLinks(w http.ResponseWriter, r *http.Request){

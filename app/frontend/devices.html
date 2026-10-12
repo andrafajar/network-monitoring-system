@@ -187,6 +187,11 @@ body.customizing .banner-custom{display:flex}
 .act-btn.del:hover{background:#FEE2E2;border-color:#DC2626}
 [data-theme="dark"] .act-btn.del:hover{background:rgba(220,38,38,.2)}
 
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-grid label{font-size:.78rem;font-weight:600;display:flex;flex-direction:column;gap:4px}
+.form-grid input,.form-grid select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;background:var(--card);color:var(--ink)}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body data-sidebar="navy">
@@ -348,10 +353,22 @@ body.customizing .banner-custom{display:flex}
       <label>Rack<select id="fRack"><option value="">— none —</option></select></label>
       <label>Poll interval (s)<input id="fPoll" type="number" placeholder="kosong = ikut group/global"></label>
       <label>SNMP community<input id="fComm" value="public"></label>
+      <label>SNMP version<select id="fSnmpVer"><option value="2c">2c</option><option value="1">1</option><option value="3">3</option></select></label>
+      <label>SSH user<input id="fSshUser" placeholder="admin"></label>
+      <label>SSH pass<input id="fSshPass" type="password" placeholder="•••••"></label>
+      <label>SSH port<input id="fSshPort" type="number" value="22"></label>
+      <label>API user<input id="fApiUser" placeholder="admin"></label>
+      <label>API pass<input id="fApiPass" type="password" placeholder="•••••"></label>
+      <label>Telnet port<input id="fTelPort" type="number" value="23"></label>
       <label>X<input id="fX" type="number" value="100"></label>
       <label>Y<input id="fY" type="number" value="100"></label>
+      <label style="grid-column:1 / -1">Note<input id="fNote" placeholder="catatan (optional)"></label>
     </div>
-    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end"><button class="btn" onclick="closeModal('modalDevice')">Batal</button><button class="btn primary" onclick="saveDevice()">Simpan</button></div>
+    <div id="devTestRes" class="mut" style="font-size:.78rem;margin-top:10px;white-space:pre-wrap;display:none;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:space-between;align-items:center">
+      <button class="btn" onclick="testDeviceConnection()" id="btnTestConn">Test koneksi</button>
+      <span style="display:flex;gap:8px"><button class="btn" onclick="closeModal('modalDevice')">Batal</button><button class="btn primary" onclick="saveDevice()">Simpan</button></span>
+    </div>
     <div id="devErr" class="mut" style="color:#DC2626;font-size:.78rem;margin-top:8px"></div>
   </div>
 </div>
@@ -611,10 +628,11 @@ async function loadDevices(){
   }catch(e){ document.getElementById('devTable').innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load — '+(e.message||'')+' — login dulu</td></tr>'; }
 }
 function renderDevices(){
-  const fg=document.getElementById('filterGroup').value, fr=document.getElementById('filterRack').value;
+  const fg=document.getElementById('filterGroup').value, fr=document.getElementById('filterRack').value, q=(document.getElementById('devSearch')?.value||'').toLowerCase().trim();
   let a=DEVICES;
   if(fg) a=a.filter(d=> d.group_id===fg);
   if(fr) a=a.filter(d=> d.rack_id===fr);
+  if(q) a=a.filter(d=> (d.id+' '+d.name+' '+d.ip+' '+(d.type||'')).toLowerCase().includes(q));
   document.getElementById('devCount').textContent=a.length+' devices';
   const gmap=Object.fromEntries(GROUPS.map(g=>[g.id,g.name]));
   const tbody=document.getElementById('devTable');
@@ -638,11 +656,11 @@ async function loadLinks(){
 }
 
 function openDeviceModal(edit){
-  document.getElementById('devErr').textContent='';
+  document.getElementById('devErr').textContent=''; const tr=document.getElementById('devTestRes'); if(tr){ tr.style.display='none'; tr.textContent=''; }
   if(!edit){
     document.getElementById('devModalTitle').textContent='+ Device';
-    ['fId','fName','fIp','fPoll','fComm','fX','fY'].forEach(id=> document.getElementById(id).value=id==='fComm'?'public': id==='fX'||id==='fY'?'100':'');
-    document.getElementById('fType').value='mikrotik';
+    ['fId','fName','fIp','fPoll','fComm','fX','fY','fSshUser','fSshPass','fSshPort','fApiUser','fApiPass','fTelPort','fNote'].forEach(id=> document.getElementById(id).value=(id==='fComm'?'public': id==='fX'||id==='fY'?'100': id==='fSshPort'?'22': id==='fTelPort'?'23':''));
+    document.getElementById('fType').value='mikrotik'; document.getElementById('fSnmpVer').value='2c';
     document.getElementById('fGroup').value=''; document.getElementById('fRack').value='';
     delete openDeviceModal._edit;
   }
@@ -651,7 +669,7 @@ function openDeviceModal(edit){
 async function saveDevice(){
   const id=document.getElementById('fId').value.trim()||undefined, name=document.getElementById('fName').value.trim(), ip=document.getElementById('fIp').value.trim();
   if(!name||!ip){ document.getElementById('devErr').textContent='Name & IP wajib'; return; }
-  const body={ name, ip, type: document.getElementById('fType').value, group_id: document.getElementById('fGroup').value||null, rack_id: document.getElementById('fRack').value||null, poll_interval: document.getElementById('fPoll').value? parseInt(document.getElementById('fPoll').value): null, snmp_community: document.getElementById('fComm').value, x: parseInt(document.getElementById('fX').value)||100, y: parseInt(document.getElementById('fY').value)||100 };
+  const body={ name, ip, type: document.getElementById('fType').value, group_id: document.getElementById('fGroup').value||null, rack_id: document.getElementById('fRack').value||null, poll_interval: document.getElementById('fPoll').value? parseInt(document.getElementById('fPoll').value): null, snmp_community: document.getElementById('fComm').value, snmp_version: document.getElementById('fSnmpVer').value, ssh_user: document.getElementById('fSshUser').value.trim()||null, ssh_pass: document.getElementById('fSshPass').value||null, ssh_port: document.getElementById('fSshPort').value? parseInt(document.getElementById('fSshPort').value): 22, api_user: document.getElementById('fApiUser').value.trim()||null, api_pass: document.getElementById('fApiPass').value||null, telnet_port: document.getElementById('fTelPort').value? parseInt(document.getElementById('fTelPort').value): 23, note: document.getElementById('fNote').value||'', x: parseInt(document.getElementById('fX').value)||100, y: parseInt(document.getElementById('fY').value)||100 };
   if(id) body.id=id;
   try{
     if(openDeviceModal._edit){
@@ -665,13 +683,50 @@ async function saveDevice(){
   }catch(e){ document.getElementById('devErr').textContent=e.message; }
 }
 async function editDevice(id){
-  const d=DEVICES.find(x=>x.id===id); if(!d) return;
-  openDeviceModal(true); openDeviceModal._edit=id;
-  document.getElementById('devModalTitle').textContent='Edit '+id;
-  document.getElementById('fId').value=d.id; document.getElementById('fName').value=d.name; document.getElementById('fIp').value=d.ip;
-  document.getElementById('fType').value=d.type; document.getElementById('fGroup').value=d.group_id||''; document.getElementById('fRack').value=d.rack_id||'';
-  document.getElementById('fPoll').value=d.poll_interval||''; document.getElementById('fComm').value=d.snmp_community||'public';
-  document.getElementById('fX').value=d.x||100; document.getElementById('fY').value=d.y||100;
+  try{
+    const d=await jget('/api/devices/'+encodeURIComponent(id));
+    openDeviceModal(true); openDeviceModal._edit=id;
+    document.getElementById('devModalTitle').textContent='Edit '+id;
+    document.getElementById('fId').value=d.id; document.getElementById('fName').value=d.name; document.getElementById('fIp').value=d.ip;
+    document.getElementById('fType').value=d.type; document.getElementById('fGroup').value=d.group_id||''; document.getElementById('fRack').value=d.rack_id||'';
+    document.getElementById('fPoll').value=d.poll_interval||''; document.getElementById('fComm').value=d.snmp_community||'public'; document.getElementById('fSnmpVer').value=d.snmp_version||'2c';
+    document.getElementById('fSshUser').value=d.ssh_user||''; document.getElementById('fSshPass').value=d.ssh_pass||''; document.getElementById('fSshPort').value=d.ssh_port||22;
+    document.getElementById('fApiUser').value=d.api_user||''; document.getElementById('fApiPass').value=d.api_pass||''; document.getElementById('fTelPort').value=d.telnet_port||23;
+    document.getElementById('fX').value=d.x||100; document.getElementById('fY').value=d.y||100; document.getElementById('fNote').value=d.note||'';
+    const tr=document.getElementById('devTestRes'); if(tr){ tr.style.display='none'; tr.textContent=''; }
+  }catch(e){
+    const d=DEVICES.find(x=>x.id===id); if(!d) return;
+    openDeviceModal(true); openDeviceModal._edit=id;
+    document.getElementById('devModalTitle').textContent='Edit '+id;
+    document.getElementById('fId').value=d.id; document.getElementById('fName').value=d.name; document.getElementById('fIp').value=d.ip;
+    document.getElementById('fType').value=d.type; document.getElementById('fGroup').value=d.group_id||''; document.getElementById('fRack').value=d.rack_id||'';
+    document.getElementById('fPoll').value=d.poll_interval||''; document.getElementById('fComm').value=d.snmp_community||'public'; document.getElementById('fSnmpVer').value='2c';
+    document.getElementById('fSshUser').value=''; document.getElementById('fSshPass').value=''; document.getElementById('fSshPort').value=22;
+    document.getElementById('fApiUser').value=''; document.getElementById('fApiPass').value=''; document.getElementById('fTelPort').value=23;
+    document.getElementById('fX').value=d.x||100; document.getElementById('fY').value=d.y||100; document.getElementById('fNote').value=d.note||'';
+  }
+}
+async function testDeviceConnection(){
+  const btn=document.getElementById('btnTestConn'), box=document.getElementById('devTestRes'), err=document.getElementById('devErr');
+  const ip=document.getElementById('fIp').value.trim(); if(!ip){ err.textContent='IP wajib untuk test'; return; }
+  const payload={ ip, snmp_community: document.getElementById('fComm').value, snmp_version: document.getElementById('fSnmpVer').value, ssh_user: document.getElementById('fSshUser').value.trim(), ssh_pass: document.getElementById('fSshPass').value, ssh_port: document.getElementById('fSshPort').value? parseInt(document.getElementById('fSshPort').value):22, api_user: document.getElementById('fApiUser').value.trim(), api_pass: document.getElementById('fApiPass').value, telnet_port: document.getElementById('fTelPort').value? parseInt(document.getElementById('fTelPort').value):23 };
+  // if editing, use test by id to leverage stored cred fallback
+  let url='/api/devices/test-connection';
+  if(openDeviceModal._edit) url='/api/devices/'+encodeURIComponent(openDeviceModal._edit)+'/test';
+  btn.disabled=true; const old=btn.textContent; btn.textContent='Testing…'; err.textContent=''; box.style.display='block'; box.textContent='▶ ping / snmp / ssh — tunggu…';
+  try{
+    const r=await fetch(url,{method:'POST', headers:{'Content-Type':'application/json', ...hdr()}, body: JSON.stringify(payload)});
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||j.msg||('HTTP '+r.status));
+    const ping=j.ping||{}, snmp=j.snmp||{}, ssh=j.ssh||{};
+    const fmt=(o)=> o.ok? '✔ ok'+(o.latency_ms!=null? ' ('+Number(o.latency_ms).toFixed(1)+'ms)':'') : '✘ '+(o.error||'fail');
+    box.textContent = `Overall: ${j.overall}
+Ping: ${fmt(ping)} loss ${ping.loss!=null?ping.loss+'%':''}
+SNMP: ${snmp.ok? '✔ '+snmp.interfaces+' ifs'+(snmp.sysDescr?' — '+snmp.sysDescr.slice(0,80):''): '✘ '+(snmp.error||'fail')}
+SSH: ${ssh.ok? '✔ ok':'✘ '+(ssh.error||'fail')}`;
+    box.style.borderColor = (ping.ok||snmp.ok) ? '#10B981' : '#F59E0B';
+  }catch(e){ err.textContent=e.message; box.textContent='Error: '+e.message; box.style.borderColor='#DC2626'; }
+  finally{ btn.disabled=false; btn.textContent=old; }
 }
 async function delDevice(id){ if(!confirm('Hapus '+id+'?')) return; await jdel('/api/devices/'+id); toast('Deleted'); loadDevices(); loadLinks(); }
 function openGroupModal(){ openModal('modalGroup'); }

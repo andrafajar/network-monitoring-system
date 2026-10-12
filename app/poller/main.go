@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -248,13 +249,30 @@ func doPing(ip string) (float64, float64, bool) {
 	p.Timeout = 2 * time.Second
 	p.SetPrivileged(false)
 	if err := p.Run(); err != nil {
+		if strings.Contains(err.Error(), "permission") || strings.Contains(err.Error(), "operation not permitted") || strings.Contains(err.Error(), "socket") {
+			if ok, lat := tcpReach(ip); ok {
+				return lat, 0, true
+			}
+		}
 		return 0, 100, false
 	}
 	s := p.Statistics()
 	if s.PacketsRecv == 0 {
+		if ok, lat := tcpReach(ip); ok {
+			return lat, 0, true
+		}
 		return 0, 100, false
 	}
 	return float64(s.AvgRtt.Microseconds()) / 1000.0, float64(s.PacketLoss), true
+}
+func tcpReach(ip string) (bool,float64){
+	ports:=[]string{"22","80","443","161","8291","8728"}
+	start:=time.Now()
+	for _,pt:=range ports{
+		c,err:=net.DialTimeout("tcp", net.JoinHostPort(ip,pt), 1200*time.Millisecond)
+		if err==nil { c.Close(); return true, float64(time.Since(start).Microseconds())/1000.0 }
+	}
+	return false, 0
 }
 
 func doSNMP(d Device) bool {
