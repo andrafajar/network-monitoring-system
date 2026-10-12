@@ -191,6 +191,8 @@ body.customizing .banner-custom{display:flex}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .form-grid label{font-size:.78rem;font-weight:600;display:flex;flex-direction:column;gap:4px}
 .form-grid input,.form-grid select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;background:var(--card);color:var(--ink)}
+.form-grid .sec-head{grid-column:1 / -1;font-size:.68rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:8px 0 4px;margin-top:6px;border-top:1px solid var(--line)}
+.form-grid .sec-head:first-child{border-top:0;margin-top:0;padding-top:0}
 @media(max-width:640px){.form-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -203,10 +205,10 @@ body.customizing .banner-custom{display:flex}
     <div class="has-sub open" id="devSubWrap">
       <a href="devices.html" class="on" id="devParent" onclick="toggleDevSub(event)"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="6" rx="1.4"/><rect x="4" y="14" width="16" height="6" rx="1.4"/><circle cx="7.5" cy="7" r="0.9" fill="currentColor" stroke="none"/><circle cx="7.5" cy="17" r="0.9" fill="currentColor" stroke="none"/><path d="M11 7h6M11 17h6"/></svg><span class="lbl">Devices</span><span class="sp"></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polyline points="6 9 12 15 18 9"/></svg></a>
       <div class="submenu" id="devSubmenu">
-        <a class="on" href="devices.html#devices"><svg class="ico sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="5" rx="1.2"/><rect x="4" y="9.5" width="16" height="5" rx="1.2"/><rect x="4" y="15" width="16" height="5" rx="1.2"/><circle cx="7" cy="6.5" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="17.5" r="0.7" fill="currentColor" stroke="none"/></svg><span class="lbl">Device List</span></a>
-        <a class="" href="devices.html#racks"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="1.4"/><path d="M4 9h16M4 15h16"/><circle cx="7" cy="6" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="0.7" fill="currentColor" stroke="none"/></svg><span class="lbl">Racks</span></a>
-        <a class="" href="devices.html#groups"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 21v-2a3.5 3.5 0 00-3-3.4"/><path d="M16 3.5a3.2 3.2 0 010 6.1"/></svg><span class="lbl">Groups</span></a>
-        <a class="" href="devices.html#links"><svg class="ico sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 13a5 5 0 007.5.6l2.2-2.2a5 5 0 00-7-7l-1.1 1.1"/><path d="M14 11a5 5 0 00-7.5-.6l-2.2 2.2a5 5 0 007 7l1.1-1.1"/></svg><span class="lbl">Links</span></a>
+        <a class="on" href="#devices" onclick="event.preventDefault();switchView('devices');"><svg class="ico sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="5" rx="1.2"/><rect x="4" y="9.5" width="16" height="5" rx="1.2"/><rect x="4" y="15" width="16" height="5" rx="1.2"/><circle cx="7" cy="6.5" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="17.5" r="0.7" fill="currentColor" stroke="none"/></svg><span class="lbl">Device List</span></a>
+        <a class="" href="#racks" onclick="event.preventDefault();switchView('racks');"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="3" width="16" height="18" rx="1.4"/><path d="M4 9h16M4 15h16"/><circle cx="7" cy="6" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="12" r="0.7" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="0.7" fill="currentColor" stroke="none"/></svg><span class="lbl">Racks</span></a>
+        <a class="" href="#groups" onclick="event.preventDefault();switchView('groups');"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="3.2"/><path d="M22 21v-2a3.5 3.5 0 00-3-3.4"/><path d="M16 3.5a3.2 3.2 0 010 6.1"/></svg><span class="lbl">Groups</span></a>
+        <a class="" href="#links" onclick="event.preventDefault();switchView('links');"><svg class="ico sub-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 13a5 5 0 007.5.6l2.2-2.2a5 5 0 00-7-7l-1.1 1.1"/><path d="M14 11a5 5 0 00-7.5-.6l-2.2 2.2a5 5 0 007 7l1.1-1.1"/></svg><span class="lbl">Links</span></a>
       </div>
     </div>
     <a class="" href="topology.html"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><path d="M8 2v16M16 6v16"/></svg><span class="lbl">Topology</span></a>
@@ -326,7 +328,17 @@ body.customizing .banner-custom{display:flex}
 
   <div id="view-links" style="display:none">
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>Links</b><button class="btn sm" onclick="openLinkModal()">+ Link</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px"><b>Links</b><span class="pill" id="linkCount" style="font-size:.75rem;padding:3px 10px;background:var(--bg);border:1px solid var(--line);border-radius:999px;color:var(--muted)">—</span></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="position:relative;display:flex;align-items:center">
+            <svg class="ico" style="position:absolute;left:10px;width:15px;height:15px;color:var(--muted);pointer-events:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="linkSearch" placeholder="Cari ID, src/dst, deskripsi..." style="padding:7px 10px 7px 32px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;width:220px;background:var(--card);color:var(--ink)" oninput="renderLinks()">
+          </div>
+          <button class="btn sm ghost" onclick="loadLinks()" title="Refresh links" style="padding:7px 10px">↻</button>
+          <button class="btn sm" style="background:#0A2463;color:#fff;padding:7px 12px" onclick="openLinkModal()">+ Link</button>
+        </div>
+      </div>
       <div style="overflow:auto">
         <table>
           <thead><tr><th>ID</th><th>Src → Dst</th><th>Type</th><th>Description</th><th>Capacity</th><th>Sensor</th><th>BPS</th><th>Act</th></tr></thead>
@@ -345,23 +357,28 @@ body.customizing .banner-custom{display:flex}
   <div class="card" style="max-width:560px;width:100%;max-height:90vh;overflow:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="devModalTitle">+ Device</b><button class="btn sm" onclick="closeModal('modalDevice')">✕</button></div>
     <div class="form-grid">
+      <div class="sec-head">Identitas</div>
       <label>ID (auto if empty)<input id="fId" placeholder="RB-01"></label>
       <label>Name<input id="fName" placeholder="RB Core"></label>
       <label>IP<input id="fIp" placeholder="10.0.1.1"></label>
       <label>Type<select id="fType"><option>mikrotik</option><option>switch</option><option>server</option><option>cctv</option><option>generic</option></select></label>
+      <div class="sec-head">Penempatan</div>
       <label>Group<select id="fGroup"><option value="">— none —</option></select></label>
       <label>Rack<select id="fRack"><option value="">— none —</option></select></label>
+      <label>X (topology)<input id="fX" type="number" value="100"></label>
+      <label>Y (topology)<input id="fY" type="number" value="100"></label>
+      <div class="sec-head">Polling & SNMP</div>
       <label>Poll interval (s)<input id="fPoll" type="number" placeholder="kosong = ikut group/global"></label>
       <label>SNMP community<input id="fComm" value="public"></label>
       <label>SNMP version<select id="fSnmpVer"><option value="2c">2c</option><option value="1">1</option><option value="3">3</option></select></label>
+      <div class="sec-head">Kredensial Remote</div>
       <label>SSH user<input id="fSshUser" placeholder="admin"></label>
       <label>SSH pass<input id="fSshPass" type="password" placeholder="•••••"></label>
       <label>SSH port<input id="fSshPort" type="number" value="22"></label>
+      <label>Telnet port<input id="fTelPort" type="number" value="23"></label>
       <label>API user<input id="fApiUser" placeholder="admin"></label>
       <label>API pass<input id="fApiPass" type="password" placeholder="•••••"></label>
-      <label>Telnet port<input id="fTelPort" type="number" value="23"></label>
-      <label>X<input id="fX" type="number" value="100"></label>
-      <label>Y<input id="fY" type="number" value="100"></label>
+      <div class="sec-head">Catatan</div>
       <label style="grid-column:1 / -1">Note<input id="fNote" placeholder="catatan (optional)"></label>
     </div>
     <div id="devTestRes" class="mut" style="font-size:.78rem;margin-top:10px;white-space:pre-wrap;display:none;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px"></div>
@@ -397,12 +414,15 @@ body.customizing .banner-custom{display:flex}
   <div class="card" style="max-width:560px;width:100%">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b>+ Link</b><button class="btn sm" onclick="closeModal('modalLink')">✕</button></div>
     <div class="form-grid">
+      <div class="sec-head">Endpoint</div>
       <label>Src ID<input id="lSrc" placeholder="RB-01 atau A"></label>
       <label>Dst ID<input id="lDst" placeholder="SW-01 atau B"></label>
       <label>Src type<select id="lSrcType"><option value="device">device</option><option value="rack">rack</option></select></label>
       <label>Dst type<select id="lDstType"><option value="device">device</option><option value="rack">rack</option></select></label>
+      <div class="sec-head">Detail Link</div>
       <label>Deskripsi<input id="lDesc" placeholder="VLAN 10 uplink"></label>
       <label>Capacity (bps)<input id="lCap" type="number" value="1000000000"></label>
+      <div class="sec-head">Sensor (opsional)</div>
       <label>Sensor device (optional)<select id="lSensor"><option value="">— none —</option></select></label>
       <label>Sensor ifIndex<input id="lIf" type="number" placeholder="2"></label>
     </div>
@@ -484,7 +504,7 @@ async function jdel(p){ const r=await fetch(API+p,{method:'DELETE',headers:hdr()
 function closeModal(id){ document.getElementById(id).style.display='none'; }
 function openModal(id){ document.getElementById(id).style.display='flex'; }
 
-let GROUPS=[], RACKS=[], DEVICES=[];
+let GROUPS=[], RACKS=[], DEVICES=[], LINKS=[];
 let selectedGroupId=null;
 
 // --- terminal bastion (shared xterm split + WebFig) — synced from topology ---
@@ -646,13 +666,21 @@ function renderDevices(){
     return `<tr><td><b>${d.id}</b></td><td><b style="font-size:.84rem">${d.name}</b><div class="mut" style="font-size:.72rem">${d.ip}</div></td><td><span class="chip">${d.type}</span></td><td>${grp}</td><td>${rk}</td><td>${poll}</td><td><span class="badge ${st}">${stLabel}</span></td><td style="white-space:nowrap"><div style="display:inline-flex;gap:4px;align-items:center"><button class="act-btn" onclick="openTerminal('${d.id}','ssh')" title="SSH (Port 22)">SSH</button><button class="act-btn" onclick="openTerminal('${d.id}','telnet')" title="Telnet (Port 23)">Tel</button><button class="act-btn" onclick="openTerminal('${d.id}','api')" title="MikroTik REST API">API</button><button class="act-btn" onclick="openWebFig('${d.id}')" title="MikroTik WebFig">WebFig</button><span style="width:1px;height:14px;background:var(--line);margin:0 2px"></span><button class="act-btn" onclick="editDevice('${d.id}')" title="Edit device">Edit</button><button class="act-btn del" onclick="delDevice('${d.id}')" title="Hapus device">✕</button></div></td></tr>`;
   }).join('');
 }
+let LINKS_FILTER_Q='';
 async function loadLinks(){
   try{
-    const a=await jget('/api/links');
-    const tb=document.getElementById('linkTable');
-    if(a.length===0){ tb.innerHTML='<tr><td colspan="8" class="mut">Belum ada link</td></tr>'; return; }
-    tb.innerHTML=a.map(l=> `<tr><td><b>${l.id}</b></td><td>${l.src_id} → ${l.dst_id}</td><td><span class="chip">${l.src_type}/${l.dst_type}</span></td><td>${l.description||'<span class="mut">—</span>'}</td><td class="mut">${(l.capacity/1e9).toFixed(1)}G</td><td class="mut">${l.sensor_device_id? l.sensor_device_id+':'+(l.sensor_if_index??'—') : '—'}</td><td><b style="color:#2563EB">${l.bps||'—'}</b></td><td><button class="btn sm" style="color:#DC2626" onclick="delLink('${l.id}')">Hapus</button></td></tr>`).join('');
-  }catch(e){ document.getElementById('linkTable').innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load links</td></tr>'; }
+    LINKS=await jget('/api/links');
+    renderLinks();
+  }catch(e){ document.getElementById('linkTable').innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load links — '+(e.message||'')+'</td></tr>'; }
+}
+function renderLinks(){
+  const q=(document.getElementById('linkSearch')?.value||'').toLowerCase().trim();
+  LINKS_FILTER_Q=q;
+  const a=q ? LINKS.filter(l=> (l.id+' '+l.src_id+' '+l.dst_id+' '+(l.description||'')+' '+l.src_type+'/'+l.dst_type).toLowerCase().includes(q)) : LINKS;
+  const countEl=document.getElementById('linkCount'); if(countEl) countEl.textContent=a.length+' links';
+  const tb=document.getElementById('linkTable');
+  if(a.length===0){ tb.innerHTML='<tr><td colspan="8" class="mut">'+(LINKS.length===0?'Belum ada link — klik + Link':'Tidak ada hasil untuk "'+esc(q)+'"')+'</td></tr>'; return; }
+  tb.innerHTML=a.map(l=> `<tr><td><b>${esc(l.id)}</b></td><td>${esc(l.src_id)} → ${esc(l.dst_id)}</td><td><span class="chip">${esc(l.src_type)}/${esc(l.dst_type)}</span></td><td>${esc(l.description)||'<span class="mut">—</span>'}</td><td class="mut">${(Number(l.capacity||0)/1e9).toFixed(1)}G</td><td class="mut">${l.sensor_device_id? esc(l.sensor_device_id)+':'+(l.sensor_if_index??'—') : '—'}</td><td><b style="color:#2563EB">${esc(String(l.bps||'—'))}</b></td><td><button class="btn sm" style="color:#DC2626" onclick="delLink('${esc(l.id)}')">Hapus</button></td></tr>`).join('');
 }
 
 function openDeviceModal(edit){
