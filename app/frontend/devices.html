@@ -632,11 +632,25 @@ function openWebFigTopology(nodeId){
   document.getElementById('webfigFrame').onerror=()=>{ document.getElementById('webfigFrame').src='/api/bastion/webconsole/'+encodeURIComponent(devId); };
 }
 function closeWebfigModal(){ document.getElementById('webfigModal').style.display='none'; document.getElementById('webfigFrame').src='about:blank'; }
-document.getElementById('termModal').addEventListener('click',(e)=>{ if(e.target.id==='termModal') closeTermModal(); });
-document.getElementById('webfigModal').addEventListener('click',(e)=>{ if(e.target.id==='webfigModal') closeWebfigModal(); });
-document.getElementById('termProto').onchange=()=>{};
-document.getElementById('termDevSel').onchange=(e)=>{ if(e.target.value) createTermPane(e.target.value); };
-setTimeout(refreshTermDevSel, 600);
+// bind term modals safely — elements are after script, so defer until DOM ready
+(function bindTermModals(){
+  function doBind(){
+    try{
+      const tm=document.getElementById('termModal');
+      if(tm) tm.addEventListener('click',(e)=>{ if(e.target.id==='termModal') closeTermModal(); });
+      const wm=document.getElementById('webfigModal');
+      if(wm) wm.addEventListener('click',(e)=>{ if(e.target.id==='webfigModal') closeWebfigModal(); });
+      const tp=document.getElementById('termProto');
+      if(tp) tp.onchange=()=>{};
+      const td=document.getElementById('termDevSel');
+      if(td) td.onchange=(e)=>{ if(e.target.value) createTermPane(e.target.value); };
+      setTimeout(refreshTermDevSel, 600);
+      try{logDbg('termModals bound')}catch(_){}
+    }catch(e){ console.warn('bindTermModals',e); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', doBind);
+  else doBind();
+})();
 
 function openTerminal(devId, proto){ return openTermTopology(devId, proto); }
 function openWebFig(devId){ return openWebFigTopology(devId); }
@@ -1098,7 +1112,7 @@ document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState=
 window.addEventListener('focus', ()=>{ if(tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
 window.addEventListener('storage', (e)=>{ if(e && e.key==='nms_token') runInitLoad(); });
 try{ const _tok0=tok(); if(_tok0 && !isPreviewToken(_tok0)) setTimeout(()=> runInitLoad({silent:true}), 250); }catch(_){}
-window.__nms_hardBootstrap='v0.9.10'; try{logDbg('marker v0.9.10 ready tok'+(tok()?tok().length:0))}catch(_){}
+window.__nms_hardBootstrap='v0.9.11'; try{logDbg('marker v0.9.11 ready tok'+(tok()?tok().length:0))}catch(_){}
 </script>
 <!-- Terminal Modal (shared bastion WS — same as devices.html) -->
 <div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">
