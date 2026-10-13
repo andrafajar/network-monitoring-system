@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NMS — Devices</title>
+<script>window.__earlyErrs=[];window.__dbg=[];window.onerror=function(m,s,l,c,e){try{window.__earlyErrs.push(m+" @"+s+":"+l);window.__dbg.push("err:"+m)}catch(_){}};window.addEventListener("unhandledrejection",function(ev){try{var m=ev.reason?(ev.reason.message||String(ev.reason)):"unknown";window.__earlyErrs.push("rej:"+m);window.__dbg.push("rej:"+m.slice(0,80))}catch(_){}});function logDbg(m){try{window.__dbg.push(Date.now()%100000+":"+m);var el=document.getElementById("topbarHint");if(el){el.style.display="block";el.textContent=window.__dbg.slice(-2).join(" | ");} console.log("[dbg]"+m)}catch(_){}}</script><title>NMS — Devices</title>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -452,7 +452,7 @@ body.customizing .banner-custom{display:flex}
 </div>
 
 <script>
-const API = '';
+const API = ''; try{logDbg('script start tok'+(localStorage.getItem('nms_token')?localStorage.getItem('nms_token').length:0))}catch(_){}
 function tok(){ return localStorage.getItem('nms_token')||''; }
 function hdr(){ const h={'Content-Type':'application/json'}; const t=tok(); if(t) h['Authorization']='Bearer '+t; return h; }
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); }
@@ -679,12 +679,12 @@ async function loadDevices(){
   }catch(e){ const tb=document.getElementById('devTable'); if(tb) tb.innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load — '+(e.message||'')+' — login dulu</td></tr>'; }
 }
 // bootstrap: 1 roundtrip vs 4 parallel — devices langsung render, lainnya ikut
-async function loadBootstrap(){
+async function loadBootstrap(){ try{logDbg('loadBootstrap start')}catch(_){}
   const tb=document.getElementById('devTable');
   // skeleton langsung biar tidak kelihatan kosong
   if(tb && tb.textContent.includes('Memuat')) tb.innerHTML='<tr><td colspan="8" class="mut" style="padding:18px 12px;text-align:center">Memuat devices…</td></tr>';
   try{
-    const j=await jget('/api/bootstrap');
+    logDbg('loadBootstrap fetching /api/bootstrap'); const j=await jget('/api/bootstrap'); try{logDbg('bootstrap ok dev'+(j.devices?j.devices.length:0))}catch(_){}
     // j = {devices, groups, racks, links}
     if(Array.isArray(j.devices)){ DEVICES=j.devices; const ls=document.getElementById('lSensor'); if(ls) ls.innerHTML='<option value="">— none —</option>'+ DEVICES.map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join(''); renderDevices(); }
     if(Array.isArray(j.groups)){ GROUPS=j.groups; const el=document.getElementById('groupsList'); if(el) el.innerHTML=j.groups.map(g=> `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)"><div><b style="font-size:.84rem">${g.name}</b><div class="mut" style="font-size:.72rem">${g.description||''} • poll ${g.poll_interval}s</div></div><button class="btn sm" onclick="delGroup('${g.id}')">Hapus</button></div>`).join('') || '<div class="mut">Kosong</div>'; const fg=document.getElementById('fGroup'), flg=document.getElementById('filterGroup'); const opts='<option value="">— none —</option>'+j.groups.map(g=> `<option value="${g.id}">${g.name}</option>`).join(''); if(fg) fg.innerHTML=opts; if(flg) flg.innerHTML='<option value="">All groups</option>'+j.groups.map(g=> `<option value="${g.id}">${g.name}</option>`).join(''); if(typeof renderGroupsList==='function') try{renderGroupsList();}catch(_){} }
@@ -1026,7 +1026,7 @@ document.getElementById('filterRack').onchange=renderDevices;
 syncViewFromHash();
 function isPreviewToken(t){ return t==='preview-token'; }
 // auto-load prioritas: bootstrap 1 roundtrip — devices langsung keluar
-async function initLoad(opts={}){
+async function initLoad(opts={}){ try{logDbg('initLoad silent='+!!opts.silent+' tok'+(tok()?tok().length:0))}catch(_){}
   const silent=!!opts.silent;
   const t=tok();
   if(!t || isPreviewToken(t)){
@@ -1050,11 +1050,11 @@ function runInitLoad(opts){ try{ return initLoad(opts); }catch(e){ console.warn(
 // — hard bootstrap: jangan bergantung 1 event saja (DOMContentLoaded/load/rAF/interval) —
 (function hardBootstrap(){
   var started=false;
-  function kick(reason){
+  function kick(reason){ try{logDbg('kick '+reason+' tok'+(tok()?tok().length:0)+' ready'+document.readyState)}catch(_){}
     if(started && reason==='SyncView') return; // allow multiple but log
-    try{ runInitLoad(); }catch(e){ console.warn('[kick '+reason+']',e); }
+    try{ logDbg('kick->runInitLoad '+reason); runInitLoad(); }catch(e){ console.warn('[kick '+reason+']',e); try{logDbg('kick err '+e.message)}catch(_){} }
     // debug tick
-    try{ var dbg=document.getElementById('topbarHint'); if(dbg && tok()) dbg.style.display=''; if(dbg) dbg.textContent = 'bootstrap:'+reason+' tok:'+(tok()?tok().length:0); }catch(_){}
+    try{ var _hintEl=document.getElementById('topbarHint'); if(_hintEl && tok()) _hintEl.style.display=''; if(_hintEl) _hintEl.textContent = 'bootstrap:'+reason+' tok:'+(tok()?tok().length:0); }catch(_){}
   }
   // 1) immediate sync (parser sudah sampai sini)
   try{ kick('immediate'); started=true; }catch(_){}
@@ -1098,7 +1098,7 @@ document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState=
 window.addEventListener('focus', ()=>{ if(tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
 window.addEventListener('storage', (e)=>{ if(e && e.key==='nms_token') runInitLoad(); });
 try{ const _tok0=tok(); if(_tok0 && !isPreviewToken(_tok0)) setTimeout(()=> runInitLoad({silent:true}), 250); }catch(_){}
-window.__nms_hardBootstrap='v0.9.9';
+window.__nms_hardBootstrap='v0.9.10'; try{logDbg('marker v0.9.10 ready tok'+(tok()?tok().length:0))}catch(_){}
 </script>
 <!-- Terminal Modal (shared bastion WS — same as devices.html) -->
 <div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">

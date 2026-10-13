@@ -1,3 +1,8 @@
+## v0.9.10 — 2026-10-13
+- Fix auto-load device-list tetap `Memuat...` meski token 259 ada (tight loop: `devices.html` `tok 259` `hasHardBootstrap yes` tapi `perf_before []` no fetch): root cause — `hardBootstrap.kick()` di v0.9.9 `var dbg` hoisting shadow `function dbg/logDbg` → `dbg('kick')` throw `TypeError: dbg is not a function` sebelum `runInitLoad()` sehingga auto-load tidak pernah jalan (manual `runInitLoad()` 87ms berhasil karena direct call tanpa `kick`). Fix: rename global `dbg` → `logDbg`, lokal `var dbg` → `var _hintEl`, tambah `window.__earlyErrs/__dbg` hook di `<head>`, 9 `logDbg` probes (`script start`, `initLoad`, `loadBootstrap start/fetching/ok`, `kick`, `marker v0.9.10`)
+- Pertahankan anti-cache HTML `no-store` (nginx `location ~* \.html$ expires -1 no-store`) + `Cache-Control` meta, verified `ETag 6acd9e20 94610`, `hardBootstrap 2 marker 1`
+- Verifikasi lokal: `node --check` main OK (52802), `logDbg 10 _hintEl 5`, `main len 52802`; VPS `curl` bootstrap 2ms 8 devices via :8080/3000
+
 ## v0.9.9 — 2026-10-13
 - Fix device-list "masih Memuat" setelah login (tight loop: index login → devices auto-load kosong 3.6s, no fetch): root cause — `runInitLoad` cuma dipanggil sekali via `readyState/DOMContentLoaded` yang bisa miss setelah `goto_url`/`location.href` navigation; tambah hard-bootstrap 6 jalur (immediate + DOMContentLoaded + window.load + rAF + interval 700ms×6 cek Memuat + tombol retry manual 1200ms) + `topbarHint` debug, `__nms_hardBootstrap` marker
 - Anti-cache HTML: `devices.html` `<meta http-equiv="Cache-Control" no-store>` + `nginx.conf` `location ~* \.html$ expires -1 no-store/no-cache/must-revalidate` (sebelumnya `ETag` lama bikin HTML lama tanpa fetch, resources [] membuktikan)
