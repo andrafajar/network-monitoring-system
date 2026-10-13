@@ -84,8 +84,10 @@ document.getElementById('btnLogin').addEventListener('click', function(){
    return r.json();
  }).then(function(d){
    btn.disabled=false; btn.textContent='Masuk';
-   if(d.must_change_password){ localStorage.setItem('nms_must_change','1'); loginForm.style.display='none'; changeForm.style.display='block'; showBanner(d.defaultUser||'superadmin', d.defaultPass||'Admin@123'); }
-   else if(d.ok||d.token){ if(d.token) localStorage.setItem('nms_token', d.token); localStorage.setItem('nms_setup_done','1'); localStorage.removeItem('nms_must_change'); hideBanner(); showOk('Login OK — masuk dashboard...'); setTimeout(goDashboard,400); }
+   // simpan token dulu (penting untuk must_change agar devices.html tidak Belum login)
+   if(d.token) localStorage.setItem('nms_token', d.token);
+   if(d.must_change_password){ localStorage.setItem('nms_must_change','1'); loginForm.style.display='none'; changeForm.style.display='block'; showBanner(d.defaultUser||'superadmin', d.defaultPass||'Admin@123'); statusEl.textContent='wajib ganti password'; return; }
+   else if(d.ok||d.token){ localStorage.setItem('nms_setup_done','1'); localStorage.removeItem('nms_must_change'); hideBanner(); showOk('Login OK — masuk dashboard...'); setTimeout(goDashboard,400); }
    else showErr(d.error||'Login gagal');
  }).catch(function(){
    btn.disabled=false; btn.textContent='Masuk';
@@ -116,12 +118,27 @@ document.getElementById('btnChange').addEventListener('click', function(){
  var a=document.getElementById('np').value, b=document.getElementById('np2').value;
  if(a.length<8){ showErr2('Minimal 8 karakter'); return; }
  if(a!==b){ showErr2('Konfirmasi tidak sama'); return; }
- (function(){ var h={'Content-Type':'application/json'}; var t=localStorage.getItem('nms_token'); if(t) h['Authorization']='Bearer '+t; return fetch('/api/auth/change-password',{method:'POST',headers:h,body:JSON.stringify({username:'superadmin',old_password:'Admin@123',new_password:a})}); })().catch(function(){});
- localStorage.setItem('nms_setup_done','1'); localStorage.removeItem('nms_must_change'); localStorage.setItem('nms_admin_pass',a);
- hideBanner(); changeForm.style.display='none'; loginForm.style.display='block';
- showOk('Password baru tersimpan — banner hilang permanen. Masuk dengan password baru atau langsung ke dashboard.');
- statusEl.textContent='password diganti — preview';
- setTimeout(goDashboard,800);
+ var btn=this; btn.disabled=true; btn.textContent='Menyimpan...'; err2.style.display='none';
+ var tok=localStorage.getItem('nms_token')||'';
+ var h={'Content-Type':'application/json'}; if(tok && tok!=='preview-token') h['Authorization']='Bearer '+tok;
+ fetch('/api/auth/change-password',{method:'POST',headers:h,body:JSON.stringify({username:'superadmin',old_password:'Admin@123',new_password:a})}).then(function(r){ return r.json().then(function(j){ return {ok:r.ok, j:j, status:r.status}; }); }).then(function(res){
+   if(!res.ok){ showErr2(res.j.error||('Gagal ganti ('+res.status+')')); btn.disabled=false; btn.textContent='Simpan Password Baru'; return; }
+   // sukses — simpan baru, token lama masih valid (must_change sudah false), atau re-login untuk token fresh
+   localStorage.setItem('nms_setup_done','1'); localStorage.removeItem('nms_must_change'); localStorage.setItem('nms_admin_pass',a);
+   hideBanner(); changeForm.style.display='none'; loginForm.style.display='block';
+   showOk('Password baru tersimpan — masuk dashboard...');
+   statusEl.textContent='password diganti — ok';
+   // coba re-login dengan password baru untuk dapat token fresh (agar devices langsung load tanpa 401)
+   fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'superadmin',password:a})}).then(function(r){ return r.json(); }).then(function(d){ if(d.token) localStorage.setItem('nms_token', d.token); }).catch(function(){}).finally(function(){ setTimeout(goDashboard,500); });
+ }).catch(function(e){
+   // offline / preview lokal — tetap simpan lokal agar banner hilang permanen
+   localStorage.setItem('nms_setup_done','1'); localStorage.removeItem('nms_must_change'); localStorage.setItem('nms_admin_pass',a);
+   hideBanner(); changeForm.style.display='none'; loginForm.style.display='block';
+   showOk('Password baru tersimpan lokal (preview) — masuk dashboard...');
+   statusEl.textContent='password diganti — preview';
+   setTimeout(goDashboard,600);
+   btn.disabled=false; btn.textContent='Simpan Password Baru';
+ });
 });
 })();
 </script>

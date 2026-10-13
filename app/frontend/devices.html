@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NMS — Devices</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
-<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" media="print" onload="this.media='all'">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js" defer></script>
 <style>
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -460,7 +461,20 @@ function needLogin(){
   }
   return false;
 }
-async function jget(p){ const r=await fetch(API+p,{headers:hdr()}); if(!r.ok){ if(r.status===401) toast('401 — login dulu'); throw new Error(r.status); } return r.json(); }
+async function jget(p, opts={}){
+  const ms=opts.timeout||8000;
+  const ctl=new AbortController(); const t=setTimeout(()=> ctl.abort(), ms);
+  try{
+    const r=await fetch(API+p,{headers:hdr(), signal: ctl.signal, cache:'no-store'});
+    clearTimeout(t);
+    if(!r.ok){ if(r.status===401) toast('401 — login dulu'); throw new Error(r.status); }
+    return r.json();
+  }catch(e){
+    clearTimeout(t);
+    if(e.name==='AbortError') throw new Error('timeout '+p);
+    throw e;
+  }
+}
 async function jpost(p,b){ const r=await fetch(API+p,{method:'POST',headers:hdr(),body:JSON.stringify(b)}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.status); return j; }
 async function jput(p,b){ const r=await fetch(API+p,{method:'PUT',headers:hdr(),body:JSON.stringify(b)}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.status); return j; }
 async function jdel(p){ const r=await fetch(API+p,{method:'DELETE',headers:hdr()}); const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||r.status); return j; }
@@ -530,7 +544,7 @@ function termWSUrl(proto, devId){
   const p = proto==='api' ? 'mikrotik-api' : proto;
   return (location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/bastion/'+p+'?device_id='+encodeURIComponent(devId)+'&token='+encodeURIComponent(tok()||'');
 }
-function ensureTermDeps(){ return typeof Terminal!=='undefined'; }
+function ensureTermDeps(){ return typeof Terminal!=='undefined' && typeof FitAddon!=='undefined'; }
 async function refreshTermDevSel(){
   const sel=document.getElementById('termDevSel'); if(!sel) return;
   try{
@@ -656,11 +670,30 @@ async function loadDevices(){
   try{
     const a=await jget('/api/devices');
     DEVICES=a;
-    // also refresh racks/groups for filter
     const ls=document.getElementById('lSensor');
-    ls.innerHTML='<option value="">— none —</option>'+ a.map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join('');
+    if(ls) ls.innerHTML='<option value="">— none —</option>'+ a.map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join('');
     renderDevices();
-  }catch(e){ document.getElementById('devTable').innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load — '+(e.message||'')+' — login dulu</td></tr>'; }
+  }catch(e){ const tb=document.getElementById('devTable'); if(tb) tb.innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626">Gagal load — '+(e.message||'')+' — login dulu</td></tr>'; }
+}
+// bootstrap: 1 roundtrip vs 4 parallel — devices langsung render, lainnya ikut
+async function loadBootstrap(){
+  const tb=document.getElementById('devTable');
+  // skeleton langsung biar tidak kelihatan kosong
+  if(tb && tb.textContent.includes('Memuat')) tb.innerHTML='<tr><td colspan="8" class="mut" style="padding:18px 12px;text-align:center">Memuat devices…</td></tr>';
+  try{
+    const j=await jget('/api/bootstrap');
+    // j = {devices, groups, racks, links}
+    if(Array.isArray(j.devices)){ DEVICES=j.devices; const ls=document.getElementById('lSensor'); if(ls) ls.innerHTML='<option value="">— none —</option>'+ DEVICES.map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join(''); renderDevices(); }
+    if(Array.isArray(j.groups)){ GROUPS=j.groups; const el=document.getElementById('groupsList'); if(el) el.innerHTML=j.groups.map(g=> `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)"><div><b style="font-size:.84rem">${g.name}</b><div class="mut" style="font-size:.72rem">${g.description||''} • poll ${g.poll_interval}s</div></div><button class="btn sm" onclick="delGroup('${g.id}')">Hapus</button></div>`).join('') || '<div class="mut">Kosong</div>'; const fg=document.getElementById('fGroup'), flg=document.getElementById('filterGroup'); const opts='<option value="">— none —</option>'+j.groups.map(g=> `<option value="${g.id}">${g.name}</option>`).join(''); if(fg) fg.innerHTML=opts; if(flg) flg.innerHTML='<option value="">All groups</option>'+j.groups.map(g=> `<option value="${g.id}">${g.name}</option>`).join(''); if(typeof renderGroupsList==='function') try{renderGroupsList();}catch(_){} }
+    if(Array.isArray(j.racks)){ RACKS=j.racks; if(typeof renderRacksList==='function') renderRacksList(); const fr=document.getElementById('fRack'), flr=document.getElementById('filterRack'); if(fr && flr){ const opts='<option value="">— none —</option>'+j.racks.map(r=> `<option value="${r.id}">${r.id} — ${r.name}</option>`).join(''); fr.innerHTML=opts; flr.innerHTML='<option value="">All racks</option>'+j.racks.map(r=> `<option value="${r.id}">${r.id}</option>`).join(''); } const ls2=document.getElementById('lSensor'); if(ls2){ const cur=ls2.value; ls2.innerHTML='<option value="">— none —</option>'+ (DEVICES||[]).map(d=> `<option value="${d.id}">${d.id} — ${d.name}</option>`).join(''); if(cur) ls2.value=cur; } }
+    if(Array.isArray(j.links)){ LINKS=j.links; if(typeof renderLinks==='function') renderLinks(); }
+    return true;
+  }catch(e){
+    // fallback ke 4 request paralel (kompatibel lama)
+    console.warn('bootstrap fallback', e.message||e);
+    await Promise.allSettled([loadGroups(), loadRacks(), loadDevices(), loadLinks()]);
+    return false;
+  }
 }
 function renderDevices(){
   const fg=document.getElementById('filterGroup').value, fr=document.getElementById('filterRack').value, q=(document.getElementById('devSearch')?.value||'').toLowerCase().trim();
@@ -989,12 +1022,11 @@ document.getElementById('filterRack').onchange=renderDevices;
 // init
 syncViewFromHash();
 function isPreviewToken(t){ return t==='preview-token'; }
-// auto-load paralel + retry — tidak perlu tombol refresh
+// auto-load prioritas: bootstrap 1 roundtrip — devices langsung keluar
 async function initLoad(opts={}){
   const silent=!!opts.silent;
   const t=tok();
   if(!t || isPreviewToken(t)){
-    // belum login atau preview lokal — jangan fetch api, tampilkan pesan di SEMUA tabel (biar tidak stuck Memuat...)
     const msg = isPreviewToken(t)
       ? '<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Preview lokal (tanpa backend) — <a href="index.html" style="color:#2563EB">login superadmin/Admin@123</a> ke VPS untuk data real</td></tr>'
       : '<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Belum login — <a href="index.html" style="color:#2563EB">login superadmin/Admin@123</a> dulu, lalu otomatis termuat</td></tr>';
@@ -1004,34 +1036,23 @@ async function initLoad(opts={}){
       const lb=document.getElementById('linkTable'); if(lb) lb.innerHTML='<tr><td colspan="8" class="mut" style="padding:28px 12px;text-align:center">Belum login — login dulu</td></tr>';
       const gb=document.getElementById('groupsList'); if(gb) gb.innerHTML='<div class="mut" style="padding:16px;text-align:center">Belum login — <a href="index.html" style="color:#2563EB">login</a> dulu</div>';
     }
-    if(isPreviewToken(t)) return; // jangan fetch api dengan preview-token
+    if(isPreviewToken(t)) return;
     if(!t) return;
   }
-  // paralel, tiap loader sudah handle 401 sendiri — pakai allSettled biar satu gagal tidak blokir yang lain
   try{
-    const rs=await Promise.allSettled([loadGroups(), loadRacks(), loadDevices(), loadLinks()]);
-    if(!silent){
-      const fails=rs.filter(r=> r.status==='rejected');
-      if(fails.length) console.warn('initLoad partial fail', fails.map(f=> String(f.reason||'').slice(0,120)));
-    }
+    await loadBootstrap();
   }catch(e){ console.warn('initLoad error', e); }
 }
 function runInitLoad(opts){ try{ initLoad(opts); }catch(e){ console.warn(e); } }
-// pastikan DOM siap baru load (script sudah di akhir body tapi tetap aman)
+// langsung jalan — tidak tunggu CDN xterm (defer)
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=> runInitLoad());
 else runInitLoad();
-// fallback: jika setelah 900ms masih Memuat... dan belum login, paksa tampilkan pesan (jaga kalau initLoad terlewat)
-setTimeout(()=>{ try{
-  const tb=document.getElementById('devTable'); const txt=tb? tb.textContent||'':''; 
-  if(txt.includes('Memuat') && !tok()) runInitLoad();
-} catch(_){} }, 900);
-// auto-refresh 15s saat tab terlihat + saat balik fokus/visibility/storage (login di tab lain)
+setTimeout(()=>{ try{ const tb=document.getElementById('devTable'); const txt=tb? tb.textContent||'':''; if(txt.includes('Memuat') && !tok()) runInitLoad(); } catch(_){} }, 800);
 let _autoTimer=setInterval(()=>{ if(tok() && !isPreviewToken(tok()) && document.visibilityState==='visible') runInitLoad({silent:true}); }, 15000);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
 window.addEventListener('focus', ()=>{ if(tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
 window.addEventListener('storage', (e)=>{ if(e && e.key==='nms_token') runInitLoad(); });
-// jika sebelumnya "Gagal load — login dulu", retry sekali saat token muncul
-try{ const _tok0=tok(); if(_tok0 && !isPreviewToken(_tok0)) setTimeout(()=> runInitLoad({silent:true}), 400); }catch(_){}
+try{ const _tok0=tok(); if(_tok0 && !isPreviewToken(_tok0)) setTimeout(()=> runInitLoad({silent:true}), 250); }catch(_){}
 </script>
 <!-- Terminal Modal (shared bastion WS — same as devices.html) -->
 <div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">

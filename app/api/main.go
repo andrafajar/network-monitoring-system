@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"sync"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -117,6 +118,8 @@ func main(){
 		pr.Delete("/api/devices/{id}", handleDeleteDevice)
 		pr.Post("/api/devices/test-connection", handleTestDeviceConnection)
 		pr.Post("/api/devices/{id}/test", handleTestDeviceConnection)
+		// bootstrap — single roundtrip for devices page (priority render)
+		pr.Get("/api/bootstrap", handleBootstrap)
 		// links
 		pr.Get("/api/links", handleListLinks)
 		pr.Post("/api/links", handleCreateLink)
@@ -756,6 +759,115 @@ func handleListLinks(w http.ResponseWriter, r *http.Request){
 	}
 	if out==nil{out=[]map[string]any{}}
 	jsonWrite(w,out)
+}
+func handleBootstrap(w http.ResponseWriter, r *http.Request){
+	// RBAC: need at least dashboard (same as devices/links cover)
+	if _, ok := requireMenu(w, r, "dashboard"); !ok {
+		return
+	}
+	au, _ := getAuthUser(r.Context())
+	var (
+		devices []map[string]any
+		groups  []map[string]any
+		racks   []map[string]any
+		links   []map[string]any
+		errDev, errGrp, errRack, errLink error
+		wg sync.WaitGroup
+	)
+	wg.Add(4)
+	go func(){
+		defer wg.Done()
+		query := `SELECT id,name,ip,type,rack_id,group_id::text,status,x,y,poll_interval,snmp_community,snmp_version,ssh_user,ssh_port,api_user,telnet_port,note FROM devices`
+		args := []any{}
+		if au != nil && len(au.AllowedGroupIDs) > 0 {
+			ph, a := allowedGroupPlaceholders(au)
+			query += ` WHERE group_id::text IN `+ph
+			args = a
+		}
+		query += ` ORDER BY name`
+		rows, err := db.Query(r.Context(), query, args...)
+		if err != nil {
+			errDev = err
+			return
+		}
+		defer rows.Close()
+		for rows.Next(){
+			var id,name,ip,typ,status,comm,sver,sshU,apiU,note string
+			var x,y int
+			var pi,sp,tp sql.NullInt32
+			var rackNull, groupNull, sshUNull, apiUNull, noteNull sql.NullString
+			var sverNull, commNull sql.NullString
+			if err := rows.Scan(&id,&name,&ip,&typ,&rackNull,&groupNull,&status,&x,&y,&pi,&commNull,&sverNull,&sshUNull,&sp,&apiUNull,&tp,&noteNull); err != nil {
+				continue
+			}
+			rack:=rackNull.String; group:=groupNull.String; comm=commNull.String; sver=sverNull.String; sshU=sshUNull.String; apiU=apiUNull.String; note=noteNull.String
+			piv:=any(nil); if pi.Valid{ piv=pi.Int32 }
+			spv:=22; if sp.Valid && sp.Int32>0 { spv=int(sp.Int32) }
+			tpv:=23; if tp.Valid && tp.Int32>0 { tpv=int(tp.Int32) }
+			devices=append(devices, map[string]any{"id":id,"name":name,"ip":ip,"type":typ,"rack_id":rack,"group_id":group,"status":status,"x":x,"y":y,"poll_interval":piv,"snmp_community":comm,"snmp_version":sver,"ssh_user":sshU,"ssh_port":spv,"api_user":apiU,"telnet_port":tpv,"note":note})
+		}
+		if devices==nil{ devices=[]map[string]any{} }
+		_ = errDev
+	}()
+	go func(){
+		defer wg.Done()
+		query := "SELECT id::text,name,description,poll_interval FROM device_groups"
+		args := []any{}
+		if au != nil && len(au.AllowedGroupIDs) > 0 {
+			ph, a := allowedGroupPlaceholders(au)
+			query += " WHERE id::text IN "+ph
+			args = a
+		}
+		query += " ORDER BY name"
+		rows, err := db.Query(r.Context(), query, args...)
+		if err != nil {
+			errGrp = err
+			return
+		}
+		defer rows.Close()
+		for rows.Next(){
+			var id,name,desc string; var pi int
+			rows.Scan(&id,&name,&desc,&pi)
+			groups=append(groups, map[string]any{"id":id,"name":name,"description":desc,"poll_interval":pi})
+		}
+		if groups==nil{ groups=[]map[string]any{} }
+		_ = errGrp
+	}()
+	go func(){
+		defer wg.Done()
+		rows, err := db.Query(r.Context(),"SELECT id,name,location,x,y FROM racks ORDER BY name")
+		if err != nil {
+			errRack = err
+			return
+		}
+		defer rows.Close()
+		for rows.Next(){
+			var id,name,loc string; var x,y int
+			rows.Scan(&id,&name,&loc,&x,&y)
+			racks=append(racks, map[string]any{"id":id,"name":name,"location":loc,"x":x,"y":y})
+		}
+		if racks==nil{ racks=[]map[string]any{} }
+		_ = errRack
+	}()
+	go func(){
+		defer wg.Done()
+		rows, err := db.Query(r.Context(),`SELECT id,src_id,dst_id,src_type,dst_type,description,capacity,sensor_device_id,sensor_if_index,bps,off FROM links`)
+		if err != nil {
+			errLink = err
+			return
+		}
+		defer rows.Close()
+		for rows.Next(){
+			var id,src,dst,st,dt,desc,bps,sdev sql.NullString
+			var capv sql.NullInt64; var si sql.NullInt32; var off sql.NullFloat64
+			rows.Scan(&id,&src,&dst,&st,&dt,&desc,&capv,&sdev,&si,&bps,&off)
+			links=append(links, map[string]any{"id":id.String,"src_id":src.String,"dst_id":dst.String,"src_type":st.String,"dst_type":dt.String,"description":desc.String,"capacity":capv.Int64,"sensor_device_id":sdev.String,"sensor_if_index":func()any{if si.Valid{return si.Int32};return nil}(),"bps":bps.String,"off":func()any{if off.Valid{return off.Float64};return 0}()})
+		}
+		if links==nil{ links=[]map[string]any{} }
+		_ = errLink
+	}()
+	wg.Wait()
+	jsonWrite(w, map[string]any{"devices":devices,"groups":groups,"racks":racks,"links":links,"errors":map[string]any{"devices":func()any{if errDev!=nil{return errDev.Error()};return nil}(),"groups":func()any{if errGrp!=nil{return errGrp.Error()};return nil}(),"racks":func()any{if errRack!=nil{return errRack.Error()};return nil}(),"links":func()any{if errLink!=nil{return errLink.Error()};return nil}()}})
 }
 func handleCreateLink(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
