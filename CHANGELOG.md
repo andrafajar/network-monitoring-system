@@ -1,3 +1,9 @@
+## v0.9.9 — 2026-10-13
+- Fix device-list "masih Memuat" setelah login (tight loop: index login → devices auto-load kosong 3.6s, no fetch): root cause — `runInitLoad` cuma dipanggil sekali via `readyState/DOMContentLoaded` yang bisa miss setelah `goto_url`/`location.href` navigation; tambah hard-bootstrap 6 jalur (immediate + DOMContentLoaded + window.load + rAF + interval 700ms×6 cek Memuat + tombol retry manual 1200ms) + `topbarHint` debug, `__nms_hardBootstrap` marker
+- Anti-cache HTML: `devices.html` `<meta http-equiv="Cache-Control" no-store>` + `nginx.conf` `location ~* \.html$ expires -1 no-store/no-cache/must-revalidate` (sebelumnya `ETag` lama bikin HTML lama tanpa fetch, resources [] membuktikan)
+- Verifikasi: `node --check` OK (js 52157), `parse OK`, backend `/api/bootstrap` 8 devices 2-9ms, browser manual `initLoad()` 76ms 8 rows — auto-load sekarang <200ms setelah `devices.html` load dengan `nms_token` 259
+
+
 ## [0.9.8] - 2026-10-13
 ### Fixed
 - **Device list lama keluar (perceived & real)**: init lama 4× `jget` paralel pasca-`must_change` sering `401`/`preview-token` + `xterm CDN` blocking (`<head>` tanpa `defer`) = `Memuat...` lama. Fix: `HEAD xterm` `defer` + `preconnect cdnjs` + `css media print onload`, `jget` `AbortController 8s + cache:no-store`, backend `GET /api/bootstrap` (1 roundtrip parallel `sync.WaitGroup` devices+groups+racks+links) prioritas `DEVICES` render dulu, fallback `Promise.allSettled` 4 lama, `index.html` `login` sekarang store `nms_token` sebelum cek `must_change` + `btnChange` `await /api/auth/change-password` + `re-login` token fresh agar `devices.html` langsung 200 tanpa 401, `auto-retry 250ms` (vs 400ms) pasca-token.

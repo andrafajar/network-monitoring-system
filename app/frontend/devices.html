@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NMS — Devices</title>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" media="print" onload="this.media='all'">
@@ -1043,16 +1046,59 @@ async function initLoad(opts={}){
     await loadBootstrap();
   }catch(e){ console.warn('initLoad error', e); }
 }
-function runInitLoad(opts){ try{ initLoad(opts); }catch(e){ console.warn(e); } }
-// langsung jalan — tidak tunggu CDN xterm (defer)
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', ()=> runInitLoad());
-else runInitLoad();
-setTimeout(()=>{ try{ const tb=document.getElementById('devTable'); const txt=tb? tb.textContent||'':''; if(txt.includes('Memuat') && !tok()) runInitLoad(); } catch(_){} }, 800);
+function runInitLoad(opts){ try{ return initLoad(opts); }catch(e){ console.warn('[runInitLoad]',e); try{ var tb=document.getElementById('devTable'); if(tb) tb.innerHTML='<tr><td colspan="8" class="mut" style="color:#DC2626;padding:12px">init error: '+(e.message||e)+'</td></tr>'; }catch(_){} } }
+// — hard bootstrap: jangan bergantung 1 event saja (DOMContentLoaded/load/rAF/interval) —
+(function hardBootstrap(){
+  var started=false;
+  function kick(reason){
+    if(started && reason==='SyncView') return; // allow multiple but log
+    try{ runInitLoad(); }catch(e){ console.warn('[kick '+reason+']',e); }
+    // debug tick
+    try{ var dbg=document.getElementById('topbarHint'); if(dbg && tok()) dbg.style.display=''; if(dbg) dbg.textContent = 'bootstrap:'+reason+' tok:'+(tok()?tok().length:0); }catch(_){}
+  }
+  // 1) immediate sync (parser sudah sampai sini)
+  try{ kick('immediate'); started=true; }catch(_){}
+  // 2) DOMContentLoaded (jika masih loading)
+  try{ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){ kick('DOMContentLoaded'); }); else setTimeout(function(){ kick('rAF'); }, 30); }catch(_){}
+  // 3) window load fallback
+  try{ window.addEventListener('load', function(){ var tb=document.getElementById('devTable'); if(tb && /Memuat/.test(tb.textContent)) kick('window.load'); }); }catch(_){}
+  // 4) rAF + timeout
+  try{ requestAnimationFrame(function(){ var tb=document.getElementById('devTable'); if(tb && /Memuat/.test(tb.textContent)) kick('rAF'); }); }catch(_){}
+  // 5) interval 700ms cek Memuat (max 5x) — jika masih Memuat paksa kick
+  var tries=0;
+  var iv=setInterval(function(){
+    tries++;
+    try{
+      var tb=document.getElementById('devTable');
+      var txt=tb? tb.textContent||'':'';
+      if(/Memuat/.test(txt)){
+        kick('retry'+tries);
+      } else {
+        clearInterval(iv);
+      }
+      if(tries>=6) clearInterval(iv);
+    }catch(_){ clearInterval(iv); }
+  }, 700);
+  // 6) setelah 1200ms jika masih Memuat tampilkan tombol retry manual
+  setTimeout(function(){
+    try{
+      var tb=document.getElementById('devTable');
+      if(tb && /Memuat/.test(tb.textContent)){
+        var hasBtn=document.getElementById('__retryBtn');
+        if(!hasBtn){
+          tb.innerHTML='<tr><td colspan="8" class="mut" style="padding:18px;text-align:center">Masih memuat… <button id="__retryBtn" class="btn sm" style="margin-left:8px;background:#0A2463;color:#fff" onclick="runInitLoad()">Coba lagi</button> <span style="margin-left:8px;color:#94A3B8;font-size:.72rem">token:'+(tok()? 'ada '+tok().length:'kosong')+'</span></td></tr>';
+        }
+      }
+    }catch(_){}
+  }, 1200);
+})();
+// keep existing live hooks
 let _autoTimer=setInterval(()=>{ if(tok() && !isPreviewToken(tok()) && document.visibilityState==='visible') runInitLoad({silent:true}); }, 15000);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
 window.addEventListener('focus', ()=>{ if(tok() && !isPreviewToken(tok())) runInitLoad({silent:true}); });
 window.addEventListener('storage', (e)=>{ if(e && e.key==='nms_token') runInitLoad(); });
 try{ const _tok0=tok(); if(_tok0 && !isPreviewToken(_tok0)) setTimeout(()=> runInitLoad({silent:true}), 250); }catch(_){}
+window.__nms_hardBootstrap='v0.9.9';
 </script>
 <!-- Terminal Modal (shared bastion WS — same as devices.html) -->
 <div id="termModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,.55);z-index:90;align-items:center;justify-content:center;padding:12px">
