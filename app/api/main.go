@@ -1325,10 +1325,23 @@ func deviceCreds(ctx context.Context, id string) (ip, sshUser, sshPass string, s
 	ip = ipN.String; sshUser = suN.String; sshPass = spN.String; apiUser = auN.String; apiPass = apN.String
 	sshPort = 22; if spI.Valid && spI.Int32>0 { sshPort = int(spI.Int32) }
 	telnetPort = 23; if tpI.Valid && tpI.Int32>0 { telnetPort = int(tpI.Int32) }
-	if sshUser=="" { sshUser = envOr("MIKROTIK_USER","admin") }
-	if sshPass=="" { sshPass = envOr("MIKROTIK_PASS","") }
-	if apiUser=="" { apiUser = envOr("MIKROTIK_USER","admin") }
-	if apiPass=="" { apiPass = envOr("MIKROTIK_PASS","") }
+	// fallback: use authenticated user's username (from JWT context) for SSH/API user
+	if sshUser == "" {
+		if au, _ := getAuthUser(ctx); au != nil && au.Username != "" {
+			sshUser = au.Username
+		} else {
+			sshUser = envOr("MIKROTIK_USER", "admin")
+		}
+	}
+	if sshPass == "" { sshPass = envOr("MIKROTIK_PASS", "") }
+	if apiUser == "" {
+		if au, _ := getAuthUser(ctx); au != nil && au.Username != "" {
+			apiUser = au.Username
+		} else {
+			apiUser = envOr("MIKROTIK_USER", "admin")
+		}
+	}
+	if apiPass == "" { apiPass = envOr("MIKROTIK_PASS", "") }
 	return
 }
 
