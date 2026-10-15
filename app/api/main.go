@@ -1423,16 +1423,59 @@ func handleBastionTelnet(w http.ResponseWriter, r *http.Request){
 	if err!=nil { return }
 	defer ws.Close()
 	did := r.URL.Query().Get("device_id")
-	if did=="" { ws.WriteMessage(websocket.TextMessage, []byte("missing device_id\r\n")); return }
-	ip, _, _, _, _, _, telPort := deviceCreds(r.Context(), did)
+	if did=="" { ws.WriteMessage(websocket.TextMessage, []byte("missing device_id
+")); return }
+	// Get full creds including ssh_user/ssh_pass for telnet login
+	ip, sshUser, sshPass, _, _, _, telPort := deviceCreds(r.Context(), did)
 	if ip=="" { var tmp string; _=db.QueryRow(r.Context(), `SELECT ip FROM devices WHERE id=$1`, did).Scan(&tmp); ip=tmp }
-	if ip=="" { ws.WriteMessage(websocket.TextMessage, []byte("device not found\r\n")); return }
+	if ip=="" { ws.WriteMessage(websocket.TextMessage, []byte("device not found
+")); return }
 	addr := net.JoinHostPort(ip, fmt.Sprintf("%d", telPort))
-	ws.WriteMessage(websocket.TextMessage, []byte("[telnet] connecting to "+addr+" ...\r\n"))
+	ws.WriteMessage(websocket.TextMessage, []byte("[telnet] connecting to "+addr+" ...
+"))
 	remote, err := net.DialTimeout("tcp", addr, 6*time.Second)
-	if err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("[telnet] dial failed: "+err.Error()+"\r\n")); return }
+	if err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("[telnet] dial failed: "+err.Error()+"
+")); return }
 	defer remote.Close()
-	ws.WriteMessage(websocket.TextMessage, []byte("[telnet] connected\r\n"))
+	ws.WriteMessage(websocket.TextMessage, []byte("[telnet] connected
+"))
+	// Auto-login for MikroTik: wait for Login:/Password: prompts
+	go func(){
+		// Read initial prompt
+		buf := make([]byte, 4096)
+		remote.SetReadDeadline(time.Now().Add(3 * time.Second))
+		n, _ := remote.Read(buf)
+		prompt := string(buf[:n])
+		ws.WriteMessage(websocket.TextMessage, []byte(prompt))
+		// Send username if we have one
+		if sshUser != "" && (strings.Contains(prompt, "ogin:") || strings.Contains(prompt, "ogin :") || strings.Contains(prompt, "User:")) {
+			remote.Write([]byte(sshUser + "
+"))
+			time.Sleep(300 * time.Millisecond)
+			// Read password prompt
+			remote.SetReadDeadline(time.Now().Add(3 * time.Second))
+			n, _ = remote.Read(buf)
+			prompt = string(buf[:n])
+			ws.WriteMessage(websocket.TextMessage, []byte(prompt))
+			if sshPass != "" && (strings.Contains(prompt, "assword:") || strings.Contains(prompt, "assword :")) {
+				remote.Write([]byte(sshPass + "
+"))
+				time.Sleep(300 * time.Millisecond)
+				// Read post-login
+				remote.SetReadDeadline(time.Now().Add(2 * time.Second))
+				n, _ = remote.Read(buf)
+				ws.WriteMessage(websocket.TextMessage, []byte(string(buf[:n])))
+			}
+		}
+		// Now bridge normally
+		for {
+			remote.SetReadDeadline(time.Time{})
+			n, err := remote.Read(buf)
+			if err != nil { return }
+			if n > 0 { ws.WriteMessage(websocket.TextMessage, buf[:n]) }
+		}
+	}()
+	// ws -> remote
 	go func(){
 		for {
 			_,msg,err:= ws.ReadMessage()
@@ -1441,15 +1484,7 @@ func handleBastionTelnet(w http.ResponseWriter, r *http.Request){
 			if len(msg)==1 && msg[0]==4 { return }
 		}
 	}()
-	buf:=make([]byte, 4096)
-	for {
-		n,err:= remote.Read(buf)
-		if err!=nil { ws.WriteMessage(websocket.TextMessage, []byte("\r\n[telnet] closed\r\n")); return }
-		if n>0 { ws.WriteMessage(websocket.TextMessage, buf[:n]) }
-	}
-}
-
-func handleMikrotikAPI(w http.ResponseWriter, r *http.Request){
+}func handleMikrotikAPI(w http.ResponseWriter, r *http.Request){
 	if _,ok:=requireMenu(w,r,"devices"); !ok { return }
 	did := r.URL.Query().Get("device_id")
 	path := r.URL.Query().Get("path")
