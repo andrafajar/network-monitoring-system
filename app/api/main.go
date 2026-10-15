@@ -619,12 +619,11 @@ func handleTestDeviceConnection(w http.ResponseWriter, r *http.Request){
 	snmpVer := "2c"
 	if req.SNMPVersion!=nil && *req.SNMPVersion!="" { snmpVer=*req.SNMPVersion }
 	// Use deviceCreds for consistent fallback logic (includes JWT username fallback)
-	_, sshUser, sshPass, sshPort, _, apiPass, _ := deviceCreds(r.Context(), req.ID)
+	_, sshUser, sshPass, sshPort, _, _, _ := deviceCreds(r.Context(), req.ID)
 	// Override with any explicitly provided values from request
 	if req.SSHUser!=nil && *req.SSHUser!="" { sshUser = *req.SSHUser }
 	if req.SSHPass!=nil { sshPass = *req.SSHPass }
 	if req.SSHPort!=nil && *req.SSHPort>0 { sshPort = *req.SSHPort }
-	if req.APIPass!=nil { apiPass = *req.APIPass }
 	// ping
 	pingRes := map[string]any{"ok":false}
 	func(){
